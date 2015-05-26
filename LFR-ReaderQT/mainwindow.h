@@ -15,13 +15,19 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
-    void setupView(QImage image);
+    void setupMetaInfos( QString header, QString sha1, int sec_length, QString metainfos, QString TabString);
+    void setupView(QString header, QString sha1, int sec_length, QImage image, bool raw_image);
     void addTextTab(QWidget* widget, QString text);
 
+public slots:
+    void chooseFile();
+
 private slots:
-    void buttonDemosaicClicked();
+    void buttonGrayClicked();
     void buttonBayerClicked();
+    void buttonDemosaicClicked();
     void buttonSaveClicked();
+
 
 private:
     Ui::MainWindow *ui;

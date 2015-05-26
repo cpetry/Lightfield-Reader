@@ -50,18 +50,8 @@ int getSectionLength(std::basic_ifstream<unsigned char> &input){
     return len;
 }
 
-bool readMetaData(MainWindow* main, std::basic_ifstream<unsigned char> &input, int section_length){
-    // the data of length previously specified
-    std::string meta_info = readBytes(input, section_length);
-    if (meta_info != ""){
-        QTextBrowser* text_browser = new QTextBrowser();
-        text_browser->setText(QString::fromStdString(meta_info));
-        main->addTextTab(text_browser, "MetaInfos");
-    }
-    return true;
-}
 
-bool LFP_Reader::readPixelData(MainWindow* main, std::basic_ifstream<unsigned char> &input, int section_length, int bit){
+QImage LFP_Reader::readRawPixelData(MainWindow* main, std::basic_ifstream<unsigned char> &input, int section_length, int bit){
 
     // Illum: 1640 * 1640 * 4 * 10 / 8 / 1024 / 1024
     // 1640 * 1640 * 4 * 12 / 8 / 1024 / 1024
@@ -121,12 +111,6 @@ bool LFP_Reader::readPixelData(MainWindow* main, std::basic_ifstream<unsigned ch
                 nmb_byte = 0;
             }
             if (bit == 10 && nmb_byte == 5){
-                // little endianness!
-                // 1101 0010
-                // 00|11 0010
-                // 0111 0001
-                // 0100 1011
-                // 1010 1100
                 uint16_t t0  = uint16_t(byte[0]) << 2;
                 uint16_t t1  = uint16_t(byte[1]) << 2;
                 uint16_t t2  = uint16_t(byte[2]) << 2;
@@ -145,51 +129,10 @@ bool LFP_Reader::readPixelData(MainWindow* main, std::basic_ifstream<unsigned ch
                 t2 = t2 >> 2;
                 t3 = t3 >> 2;
 
-                // applying gamma
-                /*t0 = pow(t0,gamma);
-                t1 = pow(t1,gamma);
-                t2 = pow(t2,gamma);
-                t3 = pow(t3,gamma);*/
-                /*t0 *= 1.0f/gamma;
-                t1 *= 1.0f/gamma;
-                t2 *= 1.0f/gamma;
-                t3 *= 1.0f/gamma;*/
-
-                // 0.0-1.0
-                /*float ft0 = t0 * 1.0 / pow_10;
-                float ft1 = t1 * 1.0 / pow_10;
-                float ft2 = t2 * 1.0 / pow_10;
-                float ft3 = t3 * 1.0 / pow_10;
-                */
                 scL[col] = qRgb(t0, t0, t0);
                 scL[col+1] = qRgb(t1, t1, t1);
                 scL[col+2] = qRgb(t2, t2, t2);
                 scL[col+3] = qRgb(t3, t3, t3);
-                /*
-                scL[col].setRgbF(ft0, ft0, ft0);
-                scL[col+1].setRgbF(ft1, ft1, ft1);
-                scL[col+2].setRgbF(ft2, ft2, ft2);
-                scL[col+3].setRgbF(ft3, ft3, ft3);
-                 */
-                /*int val = byte[0];
-                val += (byte[1] & 0xC0) << 2;
-                val = val >> 2;
-                scL[col] = qRgb(val, val, val);
-
-                val = byte[1] & 0x3F;
-                val += (byte[2] & 0xF0) << 2;
-                val = val >> 2;
-                scL[col+1] = qRgb(val, val, val);
-
-                val = byte[2] & 0x0F;
-                val += (byte[3] & 0xFC) << 2;
-                val = val >> 2;
-                scL[col+2] = qRgb(val, val, val);
-
-                val = byte[3] & 0x03;
-                val += byte[4];
-                val = val >> 2;
-                scL[col+3] = qRgb(val, val, val);*/
 
                 col+=4;
                 nmb_pixel+=4;
@@ -204,13 +147,11 @@ bool LFP_Reader::readPixelData(MainWindow* main, std::basic_ifstream<unsigned ch
         col=0;
     }
 
-    main->setupView(image);
-
     // just finish the section
     if (read_byte < section_length)
         readBytes(input, section_length - read_byte);
 
-    return true;
+    return image;
 }
 
 bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char> &input, HEADER_TYPE section_type){
@@ -220,25 +161,39 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
 
 
     // magic 12 byte Header
-    std::string bytes = readBytes(input, 12);
+    QString byte_header = QString::fromStdString(readBytes(input, 12));
 
     // Section length in 4 bytes
     int sec_length = getSectionLength(input);
     // 45 bytes of sha1 hash as hex in ascii
-    readBytes(input, 45);
+    QString sha1_hash = QString::fromStdString(readBytes(input, 45));
     // 35 bytes of null padding
     readBytes(input, 35);
 
     bool correct = true;
     if (section_type == HEADER_TYPE::TYPE_TEXT){
-        correct = readMetaData(main, input, sec_length);
+        QString meta_info = QString::fromStdString(readBytes(input, sec_length));
+        main->setupMetaInfos(byte_header, sha1_hash, sec_length, meta_info, "MetaInfo");
     }
     else if (section_type == HEADER_TYPE::TYPE_PICTURE){
-        correct = readPixelData(main, input, sec_length, 10); // last one is bits
+        uchar* pic = new uchar[sec_length];
+        input.read(pic, sec_length);
+        QImage image = QImage::fromData(pic, sec_length);
+        if (image.isNull()){ // retry with JPG
+            image = QImage::fromData(pic, sec_length, "JPG");
+        }
+        main->setupView(byte_header, sha1_hash, sec_length, image, false); // is a normal image
+        delete(pic);
+    }
+    else if (section_type == HEADER_TYPE::TYPE_RAWPICTURE){
+        QImage image = readRawPixelData(main, input, sec_length, 10); // 10 bit per pixel
+        main->setupView(byte_header, sha1_hash, sec_length, image, true); // is a raw image
     }
     else if (section_type == HEADER_TYPE::TYPE_IGNORE){
         // just finish the section
         readBytes(input, sec_length);
+        QString info = "Unknown Type";
+        main->setupMetaInfos(byte_header, sha1_hash, sec_length, "Unknown Type", "X");
         correct = true;
     }
     else
@@ -247,6 +202,17 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
     readBytesUntilNextHeader(input);
 
     return correct;
+}
+
+bool LFP_Reader::read_RAWFile(MainWindow* main, std::string file){
+    std::basic_ifstream<unsigned char> input(file, std::ifstream::binary);
+
+    int sec_length = getSectionLength(input);
+
+    QImage image = readRawPixelData(main, input, sec_length, 10); // 10 bit per pixel
+    main->setupView("No Header", "No SHA1", sec_length, image, true); // is a raw image
+
+    return true;
 }
 
 bool LFP_Reader::read_lfp(MainWindow* main, std::string file){
@@ -272,14 +238,14 @@ bool LFP_Reader::read_lfp(MainWindow* main, std::string file){
     /*HEADER_TYPE types_illum[12] = {TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT,
                          TYPE_PICTURE, TYPE_TEXT, TYPE_PICTURE, TYPE_PICTURE,
                          TYPE_PICTURE, TYPE_PICTURE, TYPE_PICTURE, TYPE_TEXT};*/
-    HEADER_TYPE types_illum[12] = {TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT,
-                         TYPE_IGNORE, TYPE_TEXT, TYPE_IGNORE, TYPE_IGNORE,
-                         TYPE_IGNORE, TYPE_IGNORE, TYPE_PICTURE, TYPE_TEXT};
+    HEADER_TYPE types_illum[12] = {TYPE_IGNORE, TYPE_IGNORE, TYPE_IGNORE, TYPE_IGNORE,
+                         TYPE_TEXT, TYPE_PICTURE, TYPE_TEXT, TYPE_TEXT,
+                         TYPE_IGNORE, TYPE_PICTURE, TYPE_RAWPICTURE, TYPE_TEXT};
     HEADER_TYPE types_p01[4] = {TYPE_TEXT, TYPE_PICTURE, TYPE_TEXT, TYPE_TEXT};
     ptypes = types_illum;
 
 
-    std::cout << "( " << sizeof(types_illum)/sizeof(HEADER_TYPE) << " )" << std::endl;
+    std::cout << "( " << sizeof(types_illum)/sizeof(HEADER_TYPE) << " Sections )" << std::endl;
     for(int i = 0; i < sizeof(types_illum)/sizeof(HEADER_TYPE); i++)
         if(!readSection(main, input, ptypes[i]))
             return false;

@@ -39,10 +39,14 @@ void MyGraphicsView::setPixmap(QPixmap pixmap){
 
 void MyGraphicsView::demosaic(int type){
     QImage new_image(image.width(), image.height(), image.format());
+
+    if(type == 0){ // none
+        new_image = image.copy();
+    }
     // mosaic: bayer
     // Gr R
     // Gb B
-    if (type == 0){ // none
+    else if (type == 1){ // bayer
         for (int r=0; r < image.height(); r+=2){
             QRgb *new_scL1 = reinterpret_cast< QRgb *>( new_image.scanLine( r ) );
             QRgb *new_scL2 = reinterpret_cast< QRgb *>( new_image.scanLine( r+1 ) );
@@ -63,7 +67,7 @@ void MyGraphicsView::demosaic(int type){
 
     // TODO
     // demosaic that sucker!
-    if (type == 1){ // linear
+    else if (type == 2){ // linear
         for (int r=0; r < image.height(); r+=2){
             QRgb *new_scL1 = reinterpret_cast< QRgb *>( new_image.scanLine( r ) );
             QRgb *new_scL2 = reinterpret_cast< QRgb *>( new_image.scanLine( r+1 ) );
