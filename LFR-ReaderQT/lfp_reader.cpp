@@ -150,22 +150,16 @@ QImage LFP_Reader::readRawPixelData(MainWindow* main, std::basic_ifstream<unsign
             }
             if (bit == 10 && nmb_byte == 5){
 
-                /*uint16_t t0  = uint16_t(byte[0]);
-                uint16_t t1  = uint16_t(byte[1]);
-                uint16_t t2  = uint16_t(byte[2]);
-                uint16_t t3  = uint16_t(byte[3]);
-                uint16_t lsb = uint16_t(byte[4]);*/
-
-                uint16_t lsb = uint16_t(byte[0]);
+                /*uint16_t lsb = uint16_t(byte[0]);
                 uint16_t t0  = uint16_t(byte[1]) << 2;
                 uint16_t t1  = uint16_t(byte[2]) << 2;
                 uint16_t t2  = uint16_t(byte[3]) << 2;
-                uint16_t t3  = uint16_t(byte[4]) << 2;
-                /*uint16_t t0  = uint16_t(byte[0]) << 2;
+                uint16_t t3  = uint16_t(byte[4]) << 2;*/
+                uint16_t t0  = uint16_t(byte[0]) << 2;
                 uint16_t t1  = uint16_t(byte[1]) << 2;
                 uint16_t t2  = uint16_t(byte[2]) << 2;
                 uint16_t t3  = uint16_t(byte[3]) << 2;
-                uint16_t lsb = uint16_t(byte[4]);*/
+                uint16_t lsb = uint16_t(byte[4]);
 
                 t3 = t3 + ((lsb & 0x03)     ) - 64;
                 t2 = t2 + ((lsb & 0x0C) >> 2) - 64;
