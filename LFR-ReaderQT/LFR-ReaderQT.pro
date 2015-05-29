@@ -16,11 +16,13 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     lfp_reader.cpp \
     aspectratiopixmaplabel.cpp \
-    myqgraphicsview.cpp
+    myqgraphicsview.cpp \
+    qopengl_lfviewer.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
     aspectratiopixmaplabel.h \
-    myqgraphicsview.h
+    myqgraphicsview.h \
+    qopengl_lfviewer.h
 
 FORMS    += mainwindow.ui

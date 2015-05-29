@@ -3,6 +3,9 @@
 
 #include <QMainWindow>
 #include "myqgraphicsview.h"
+#include "qopengl_lfviewer.h"
+
+#include "lfp_reader.h"
 
 namespace Ui {
 class MainWindow;
@@ -22,16 +25,12 @@ public:
 public slots:
     void chooseFile();
 
-private slots:
-    void buttonGrayClicked();
-    void buttonBayerClicked();
-    void buttonDemosaicClicked();
-    void buttonSaveClicked();
-
-
 private:
     Ui::MainWindow *ui;
-    MyGraphicsView* view;
+    MyGraphicsView* color_view, *microlens_view;
+    QTabWidget* tabWidget;
+    QOpenGL_LFViewer *opengl_viewer;
+    LFP_Reader reader;
 };
 
 #endif // MAINWINDOW_H
