@@ -89,7 +89,7 @@ void MainWindow::setupMetaInfos( QString header, QString sha1, int sec_length, Q
     tabWidget->addTab(complete_widget, TabString);
 }
 
-void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage image, bool raw_image){
+void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage image, bool raw_image, LFP_Reader::lf_meta meta_infos){
     QLabel* l_header = new QLabel("Header: " + header.toLatin1().toHex());
     QLabel* l_sha1 = new QLabel("Sha1: " + sha1);
     QLabel* l_infos = new QLabel("Bytes: " + QString::number(sec_length));
@@ -97,7 +97,7 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
 
     QTabWidget* image_tab = new QTabWidget();
 
-    color_view = new MyGraphicsView(NULL, image);
+    color_view = new MyGraphicsView(NULL, image, meta_infos);
     QWidget* color_widget = new QWidget();
     QHBoxLayout* color_layout = new QHBoxLayout();
     color_widget->setLayout(color_layout);
@@ -115,9 +115,9 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
         QWidget* colorcorrect_options = new QWidget();
         QVBoxLayout* colorcorrect_options_layout = new QVBoxLayout();
         colorcorrect_options->setLayout(colorcorrect_options_layout);
-        QCheckBox *checkWhiteBalance = new QCheckBox("checkWhiteBalance");
-        QCheckBox *checkCCM = new QCheckBox("checkCCM");
-        QCheckBox *checkGamma = new QCheckBox("checkGamma");
+        QCheckBox *checkWhiteBalance = new QCheckBox("WhiteBalance");
+        QCheckBox *checkCCM = new QCheckBox("CCM");
+        QCheckBox *checkGamma = new QCheckBox("Gamma");
         QPushButton *colorcorrect = new QPushButton("ColorCorrect");
         QPushButton *save = new QPushButton("Save");
         checkWhiteBalance->setChecked(true);
@@ -143,7 +143,7 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
         color_layout->addWidget(buttons_widget);
 
 
-        microlens_view = new MyGraphicsView(NULL, image);
+        microlens_view = new MyGraphicsView(NULL, image, meta_infos);
         microlens_view->demosaic(3);
         QGridLayout* microlens_options_layout = new QGridLayout();
         QWidget* microlens_options_widget = new QWidget();
@@ -165,11 +165,11 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
         connect( radiusx, SIGNAL(valueChanged(double)), microlens_view, SLOT(setLensletWidth(double)) );
         connect( radiusy, SIGNAL(valueChanged(double)), microlens_view, SLOT(setLensletHeight(double)) );
         connect( rotation, SIGNAL(valueChanged(double)), microlens_view, SLOT(setLensletRotation(double)) );
-        centerx->setValue(-7.3299 / 1.399);
-        centery->setValue( 5.5686 / 1.399);
-        radiusx->setValue(14.2959);
-        radiusy->setValue(14.2959 * 1.0001299);
-        rotation->setValue(0.001277);
+        centerx->setValue(meta_infos.mla_centerOffset_x / meta_infos.mla_pixelPitch);
+        centery->setValue(meta_infos.mla_centerOffset_y / meta_infos.mla_pixelPitch);
+        radiusx->setValue((meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_x);
+        radiusy->setValue((meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_y);
+        rotation->setValue(meta_infos.mla_rotation);
         microlens_options_layout->addWidget(new QLabel("Center X:"),0,1);
         microlens_options_layout->addWidget(centerx,0,2);
         microlens_options_layout->addWidget(new QLabel("Center Y:"),1,1);
@@ -199,8 +199,8 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
         view_options_widget->setLayout(view_options_layout);
         QDoubleSpinBox *overlap = new QDoubleSpinBox();
         overlap->setDecimals(7);
-        overlap->setValue(14.29);
-        connect( overlap, SIGNAL(valueChanged(double)), opengl_viewer, SLOT(setOverlap(double)) );
+        overlap->setValue((meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch));
+        //connect( overlap, SIGNAL(valueChanged(double)), opengl_viewer, SLOT(setOverlap(double)) );
         view_options_layout->addWidget(new QLabel("Overlap:"),0,1);
         view_options_layout->addWidget(overlap,0,2);
         image_tab->addTab(view_widget,"View");

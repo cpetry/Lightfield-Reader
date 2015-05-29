@@ -38,9 +38,31 @@ static inline std::string &trim(std::string &s) {
         return ltrim(rtrim(s));
 }
 
+std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
+
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    split(s, delim, elems);
+    return elems;
+}
+
 static std::string getValueOf(std::string searchstr, std::string heystack, int from){
-    int pos = heystack.find(":", heystack.find(searchstr, from));
-    int str_size = std::min(heystack.find(",", pos), heystack.find("}", pos)) - pos;
+    size_t pos = heystack.find(":", heystack.find(searchstr, from));
+    int str_size = 0;
+    if (heystack.find("[", pos) < heystack.find(",", pos)){
+        pos = heystack.find("[", pos)+1;
+        str_size = int(heystack.find("]", pos) - pos);
+    }
+    else{
+        str_size = int(std::min(heystack.find(",", pos), heystack.find("}", pos)) - pos);
+    }
     return trim(heystack.substr(pos+1, str_size-1));
 }
 
@@ -90,33 +112,7 @@ int getSectionLength(std::basic_ifstream<unsigned char> &input){
 }
 
 
-QImage LFP_Reader::readRawPixelData(MainWindow* main, std::basic_ifstream<unsigned char> &input, int section_length){
-
-    // Illum: 1640 * 1640 * 4 * 10 / 8 / 1024 / 1024
-    // 1640 * 1640 * 4 * 12 / 8 / 1024 / 1024
-    // 3280 * 3280     * 12 / 8 / 1024 / 1024
-    /*
-     * switch( BitPacking )
-    case '8bit'
-        ImgSize = LFDefaultVal( 'ImgSize', [3280,3280] );
-        BuffSize = prod(ImgSize);
-
-    case '12bit'
-        ImgSize = LFDefaultVal( 'ImgSize', [3280,3280] );
-        BuffSize = prod(ImgSize) * 12/8;
-
-    case '10bit'
-        ImgSize = LFDefaultVal( 'ImgSize', [7728, 5368] );
-        BuffSize = prod(ImgSize) * 10/8;
-
-    case '16bit'
-        ImgSize = LFDefaultVal( 'ImgSize', [3280,3280] );
-        BuffSize = prod(ImgSize) * 16/8;
-
-    otherwise
-        error('Unrecognized bit packing format');
-    end
-      */
+QImage LFP_Reader::readRawPixelData(std::basic_ifstream<unsigned char> &input, int section_length){
 
     int col=0, row=0;
 
@@ -149,7 +145,7 @@ QImage LFP_Reader::readRawPixelData(MainWindow* main, std::basic_ifstream<unsign
                 nmb_byte = 0;
             }
             if (bit == 10 && nmb_byte == 5){
-
+                // 01010101 01011011 01011101 11011011 11|01|10|11
                 /*uint16_t lsb = uint16_t(byte[0]);
                 uint16_t t0  = uint16_t(byte[1]) << 2;
                 uint16_t t1  = uint16_t(byte[2]) << 2;
@@ -227,12 +223,12 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
         if (image.isNull()){ // retry with JPG
             image = QImage::fromData(pic, sec_length, "JPG");
         }
-        main->setupView(byte_header, sha1_hash, sec_length, image, false); // is a normal image
+        main->setupView(byte_header, sha1_hash, sec_length, image, false, meta_infos); // is a normal image
         delete(pic);
     }
     else if (section_type == HEADER_TYPE::TYPE_RAWPICTURE){
-        QImage image = readRawPixelData(main, input, sec_length); // 10 bit per pixel
-        main->setupView(byte_header, sha1_hash, sec_length, image, true); // is a raw image
+        QImage image = readRawPixelData(input, sec_length); // 10 bit per pixel
+        main->setupView(byte_header, sha1_hash, sec_length, image, true, meta_infos ); // is a raw image
     }
     else if (section_type == HEADER_TYPE::TYPE_IGNORE){
         // just finish the section
@@ -262,23 +258,53 @@ std::string LFP_Reader::readText(std::basic_ifstream<unsigned char> &input, int 
 }
 
 void LFP_Reader::parseLFMetaInfo(QString meta_info){
-    int width = 20;
-    int height = 20;
-    int bits = 10;
-    if (meta_info.contains(QString("image"), Qt::CaseInsensitive)
-      && meta_info.contains(QString("ILLUM"), Qt::CaseInsensitive)){
+
+    if (meta_info.contains(QString("\"image\""), Qt::CaseInsensitive)
+      //&& meta_info.contains(QString("ILLUM"), Qt::CaseInsensitive)
+            ){
 
         std::string smeta = meta_info.toStdString();
-        int pos = smeta.find("image");
+        size_t pos = smeta.find("image");
 
-        bits = atoi(getValueOf("bitsPerPixel", smeta, pos).c_str());
-        width = atoi(getValueOf("width", smeta, pos).c_str());
-        height = atoi(getValueOf("height", smeta, pos).c_str());
+        this->meta_infos.bits = atoi(getValueOf("bitsPerPixel", smeta, int(pos)).c_str());
+        this->meta_infos.width = atoi(getValueOf("width", smeta, int(pos)).c_str());
+        this->meta_infos.height = atoi(getValueOf("height", smeta, int(pos)).c_str());
 
-        std::cout << bits << std::endl;
-        std::cout << width << std::endl;
-        std::cout << height << std::endl;
-        this->meta_infos = LFP_Reader::lf_meta(bits, width, height);
+        std::string cc = getValueOf("ccm", smeta, int(pos)).c_str();
+        std::vector<std::string> cc_split = split(cc, ',');
+        for (int i = 0; i < 9; i++)
+            meta_infos.cc[i] = atof(cc_split[i].c_str());
+
+        pos = smeta.find("sensor");
+        meta_infos.mla_pixelPitch = atof(getValueOf("\"pixelPitch\"", smeta, int(pos)).c_str());
+
+        pos = smeta.find("whiteBalanceGain");
+        meta_infos.r_bal = atof(getValueOf("\"r\"", smeta, int(pos)).c_str());
+        meta_infos.b_bal = atof(getValueOf("\"b\"", smeta, int(pos)).c_str());
+
+        pos = smeta.find("mla");
+        meta_infos.mla_rotation = atof(getValueOf("rotation", smeta, int(pos)).c_str());
+        pos = smeta.find("scaleFactor");
+        meta_infos.mla_scale_x = atof(getValueOf("x", smeta, int(pos)).c_str());
+        meta_infos.mla_scale_y = atof(getValueOf("y", smeta, int(pos)).c_str());
+        meta_infos.mla_lensPitch = atof(getValueOf("lensPitch", smeta, int(pos)).c_str());
+        pos = smeta.find("sensorOffset");
+        meta_infos.mla_centerOffset_x = atof(getValueOf("x", smeta, int(pos)).c_str());;
+        meta_infos.mla_centerOffset_y = atof(getValueOf("y", smeta, int(pos)).c_str());;
+
+        /*std::cout << meta_infos.bits << std::endl;
+        std::cout << meta_infos.width << std::endl;
+        std::cout << meta_infos.height << std::endl;
+        std::cout << meta_infos.cc[0] << std::endl;
+        std::cout << meta_infos.r_bal << std::endl;
+        std::cout << meta_infos.b_bal << std::endl;
+        std::cout << meta_infos.mla_rotation << std::endl;
+        std::cout << meta_infos.mla_scale_x << std::endl;
+        std::cout << meta_infos.mla_scale_y << std::endl;
+        std::cout << meta_infos.mla_lensPitch << std::endl;
+        std::cout << meta_infos.mla_centerOffset_x << std::endl;
+        std::cout << meta_infos.mla_centerOffset_y << std::endl;*/
+
     }
 }
 
@@ -289,8 +315,8 @@ bool LFP_Reader::read_RAWFile(MainWindow* main, std::string file ){
 
     int sec_length = getSectionLength(input);
 
-    QImage image = readRawPixelData(main, input, sec_length);
-    main->setupView("No Header", "No SHA1", sec_length, image, true); // is a raw image
+    QImage image = readRawPixelData(input, sec_length);
+    main->setupView("No Header", "No SHA1", sec_length, image, true, this->meta_infos); // is a raw image
 
     return true;
 }
@@ -312,8 +338,6 @@ bool LFP_Reader::read_lfp(MainWindow* main, std::string file){
     if(!checkForByteSequence(input, 4, nothing))
         return false;
 
-    bool is_lytro_illum = true;
-
     HEADER_TYPE* ptypes;
     /*HEADER_TYPE types_illum[12] = {TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT,
                          TYPE_PICTURE, TYPE_TEXT, TYPE_PICTURE, TYPE_PICTURE,
@@ -321,7 +345,7 @@ bool LFP_Reader::read_lfp(MainWindow* main, std::string file){
     HEADER_TYPE types_illum[12] = {TYPE_IGNORE, TYPE_IGNORE, TYPE_IGNORE, TYPE_IGNORE,
                          TYPE_TEXT, TYPE_PICTURE, TYPE_TEXT, TYPE_TEXT,
                          TYPE_TEXT, TYPE_PICTURE, TYPE_RAWPICTURE, TYPE_TEXT};
-    HEADER_TYPE types_p01[4] = {TYPE_TEXT, TYPE_PICTURE, TYPE_TEXT, TYPE_TEXT};
+    //HEADER_TYPE types_p01[4] = {TYPE_TEXT, TYPE_PICTURE, TYPE_TEXT, TYPE_TEXT};
     ptypes = types_illum;
 
 

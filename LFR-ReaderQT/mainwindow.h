@@ -19,7 +19,7 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
     void setupMetaInfos( QString header, QString sha1, int sec_length, QString metainfos, QString TabString);
-    void setupView(QString header, QString sha1, int sec_length, QImage image, bool raw_image);
+    void setupView(QString header, QString sha1, int sec_length, QImage image, bool raw_image, LFP_Reader::lf_meta meta_infos);
     void addTextTab(QWidget* widget, QString text);
 
 public slots:

@@ -17,8 +17,8 @@
 /**
 * Sets up the subclassed QGraphicsView
 */
-MyGraphicsView::MyGraphicsView(QWidget* parent, QImage image) : QGraphicsView(parent) {
-
+MyGraphicsView::MyGraphicsView(QWidget* parent, QImage image, LFP_Reader::lf_meta meta_infos) : QGraphicsView(parent) {
+    this->meta_infos = meta_infos;
     setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
 
     //Set-up the scene
@@ -33,7 +33,7 @@ MyGraphicsView::MyGraphicsView(QWidget* parent, QImage image) : QGraphicsView(pa
 
     lenslet_center = QPointF(0,0);
     lenslet_size = QSize(10,10);
-    lenslet_rotation = 0.001277;
+    lenslet_rotation = meta_infos.mla_rotation;
 
     //Use ScrollHand Drag Mode to enable Panning
     setDragMode(ScrollHandDrag);
@@ -242,9 +242,9 @@ void MyGraphicsView::demosaic(int type){
                 //scL1[c]   = qRgb(0,             qRed(scL1[c]),0);       // Gr
                 //scL1[c+1] = qRgb(qRed(scL1[c+1]),0,0);                  // R
                 //scL1[c] = qRgb(0,qRed(scL1[c]),0);           // Gr
-                new_scL1[c+1] = qRgb(qRed(scL1[c+1]) * 1.5358363f ,  0,0);   // R
+                new_scL1[c+1] = qRgb(qRed(scL1[c+1]) * meta_infos.r_bal ,  0,0);   // R
                 new_scL1[c]   = qRgb(0, qRed(scL1[c]),0);       // G
-                new_scL2[c]   = qRgb(0,0, qRed(scL2[c]) * 1.2227941f);        // B
+                new_scL2[c]   = qRgb(0,0, qRed(scL2[c]) * meta_infos.b_bal);        // B
                 new_scL2[c+1] = qRgb(0,qRed(scL2[c+1]),0);       // Gb
 
             }
@@ -306,20 +306,11 @@ void MyGraphicsView::demosaic(int type){
 
     // Color correct
     if (type == 3){ // linear
-        float cc[] = {2.1982681751251221,
-                      -1.0301487445831299,
-                      -0.16811944544315338,
-                      -0.41637039184570312,
-                      1.7612138986587524,
-                      -0.34484356641769409,
-                      -0.18718503415584564,
-                      -0.71668589115142822,
-                      1.9038710594177246};
-        QMatrix3x3 c(cc);
+        QMatrix3x3 c(meta_infos.cc);
         QMatrix4x4 ccm = QMatrix4x4(c.data(), 3, 3);
         //ccm = ccm.inverted();
-        float r_bal = 1.5358363f;
-        float b_bal = 1.2227941f;
+        float r_bal = meta_infos.r_bal;
+        float b_bal = meta_infos.b_bal;
         float SatLvl_r = r_bal*ccm(0,0) + 1*ccm(0,1) + b_bal*ccm(0,2);
         float SatLvl_g = r_bal*ccm(1,0) + 1*ccm(1,1) + b_bal*ccm(1,2);
         float SatLvl_b = r_bal*ccm(2,0) + 1*ccm(2,1) + b_bal*ccm(2,2);

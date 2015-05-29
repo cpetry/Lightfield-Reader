@@ -19,10 +19,10 @@ void QOpenGL_LFViewer::setTextures(QList<QImage*> images){
 
 QOpenGL_LFViewer::~QOpenGL_LFViewer()
 {
-    makeCurrent();
+    //makeCurrent();
     vbo.destroy();
     delete program;
-    doneCurrent();
+    //doneCurrent();
 }
 
 QSize QOpenGL_LFViewer::minimumSizeHint() const

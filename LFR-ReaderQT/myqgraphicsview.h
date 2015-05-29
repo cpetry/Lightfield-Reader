@@ -4,11 +4,13 @@
 #include <QGraphicsView>
 #include <QGraphicsRectItem>
 
+#include "lfp_reader.h"
+
 class MyGraphicsView : public QGraphicsView
 {
     Q_OBJECT
 public:
-    MyGraphicsView(QWidget* parent, QImage image);
+    MyGraphicsView(QWidget* parent, QImage image, LFP_Reader::lf_meta meta_infos);
     void setRawPixmap(QPixmap pixmap);
     void setViewPixmap();
     void demosaic(int type);
@@ -42,11 +44,12 @@ private:
     QGraphicsScene* Scene;
     QImage image, finished_image;
     QPixmap rawpixmap;
-    QPointF lenslet_center;
-    QSizeF lenslet_size;
+    QPointF lenslet_center = QPointF(0,0);
+    QSizeF lenslet_size = QSize(10,10);
     double lenslet_rotation;
     double overlap = 14.29;
     bool enable_whiteBalance = true, enable_CCM = true, enable_Gamma = true;
+    LFP_Reader::lf_meta meta_infos;
 
 };
 
