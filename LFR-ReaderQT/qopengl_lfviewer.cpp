@@ -5,11 +5,16 @@
 #include <QMouseEvent>
 #include <QGenericMatrix>
 
-QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage image)
+QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image)
     : QOpenGLWidget(parent),
       clearColor(Qt::black),
       program(0)
 {
+    if (image.format() == QImage::Format_Indexed8)
+        texture_is_raw = true;
+    else
+        texture_is_raw = false;
+
     texture = image.mirrored();
 }
 
@@ -19,10 +24,10 @@ void QOpenGL_LFViewer::setTextures(QList<QImage*> images){
 
 QOpenGL_LFViewer::~QOpenGL_LFViewer()
 {
-    //makeCurrent();
+    makeCurrent();
     vbo.destroy();
     delete program;
-    //doneCurrent();
+    doneCurrent();
 }
 
 QSize QOpenGL_LFViewer::minimumSizeHint() const
@@ -78,27 +83,10 @@ void QOpenGL_LFViewer::initializeGL()
     vshader->compileSourceCode(vsrc);
 
     QOpenGLShader *fshader = new QOpenGLShader(QOpenGLShader::Fragment, this);
-    const char *fsrc =
-        "uniform sampler2D texture;\n"
-        "uniform mediump vec2 tex_dim;\n"
-        "uniform mediump vec2 lenslet_dim;\n"
-        "uniform mediump vec2 centerLens_pos;\n"
-        "uniform mediump vec2 lens_pos_view;\n"
-        "uniform mediump mat2 lenslet_m;\n"
-        "varying mediump vec4 texc;\n"
-        "void main(void)\n"
-        "{\n"
-        "    vec2 diff_from_raw_center = -(centerLens_pos - (texc.st * tex_dim));\n"
-        "    vec2 currentLens = inverse(lenslet_m) * diff_from_raw_center;\n"
-        "    currentLens = vec2(int(currentLens.x + 0.5), int(currentLens.y + 0.5));\n"     // Now we have the correct lense
-        "    vec2 pixel_in_lense = currentLens + lens_pos_view;\n"
-        "    if(int(currentLens.y) % 2 == 1)\n"
-        "       pixel_in_lense.x += 0.5;\n"
-        "    vec2 pixel_in_lense_pos = lenslet_m * pixel_in_lense;\n"
-        "    vec2 texel_pos = (centerLens_pos + pixel_in_lense_pos) / tex_dim;\n"
-        "    gl_FragColor = texture2D(texture, texel_pos);\n"
-        "}\n";
-    fshader->compileSourceCode(fsrc);
+    if (texture_is_raw)
+        fshader->compileSourceFile("lightfield_raw.fsh");
+    else
+        fshader->compileSourceFile("lightfield.fsh");
 
     program = new QOpenGLShaderProgram;
     program->addShader(vshader);
@@ -115,11 +103,11 @@ void QOpenGL_LFViewer::initializeGL()
 
     program->setUniformValue("matrix", m);
 
-    double centerx = -7.3299 / 1.399;
-    double centery = 5.5686 / 1.399;
-    double radiusx = 14.2959;
-    double radiusy = 14.2959 * 1.0001299;
-    double lenslet_rotation = 0.001277;
+    double centerx = -5.23571;
+    double centery = 3.97761;
+    double radiusx = 14.28571;
+    double radiusy = 14.28757;
+    double lenslet_rotation = 0.0012772;
 
 
     float dy_rot_PerLenslet_hori = -tan(lenslet_rotation) * radiusx;
@@ -148,9 +136,16 @@ void QOpenGL_LFViewer::initializeGL()
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
-    _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texture.width(),
-                texture.height(), 0, GL_BGRA, GL_UNSIGNED_BYTE, texture.bits());
+    if (texture_is_raw)
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, texture.width(),
+                    texture.height(), 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, texture.bits());
+    else
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texture.width(),
+                    texture.height(), 0, GL_BGRA, GL_UNSIGNED_BYTE, texture.bits());
     glEnable(GL_TEXTURE_2D);
+
+    texture = QImage(0,0);
+    qWarning() << texture.byteCount();
 }
 
 void QOpenGL_LFViewer::paintGL()
@@ -215,6 +210,11 @@ void QOpenGL_LFViewer::mouseMoveEvent(QMouseEvent *event)
     update();
 }
 
+void QOpenGL_LFViewer::setOverlap(double o){
+    overlap = o;
+    update();
+}
+
 void QOpenGL_LFViewer::focus_changed(int value){
     focus = value / 100.0f;
     update();
@@ -256,7 +256,6 @@ void QOpenGL_LFViewer::makeObject(){
         { +1, -1, 0 }, { -1, -1, 0 }, { -1, +1, 0 }, { +1, +1, 0 }
     };
 
-
     QVector<GLfloat> vertData;
     for (int j = 0; j < 4; ++j) {
         // vertex position
@@ -267,15 +266,6 @@ void QOpenGL_LFViewer::makeObject(){
         vertData.append(j == 0 || j == 3);
         vertData.append(j == 0 || j == 1);
     }
-
-    //QString filepath = "../frenchguy/frenchguy";
-    int y_per_frame = 15, x_per_frame = 15;
-
-    //texture = QImage(QString("../raw_decoded_demosaiced_cc.png")).mirrored();
-    //if (texture.isNull())
-    //    qWarning() << "Could not find image!";
-
-    //this->resize(textures[0].width(), textures[0].height());
 
     vbo.create();
     vbo.bind();

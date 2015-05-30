@@ -39,20 +39,11 @@ MyGraphicsView::MyGraphicsView(QWidget* parent, QImage image, LFP_Reader::lf_met
     setDragMode(ScrollHandDrag);
 }
 
-void MyGraphicsView::tabSelected(int tab_number){
-    if (tab_number == 0) // Color
-        setRawPixmap(this->rawpixmap);
-    else if (tab_number == 1)
-        showLenslet();
-    else if (tab_number == 2) // view
-        setViewPixmap();
-}
-
 void MyGraphicsView::setRawPixmap(QPixmap pixmap){
     Scene->clear();
     if (!pixmap.isNull())
         this->rawpixmap = pixmap;
-    QGraphicsPixmapItem* gi = Scene->addPixmap(this->rawpixmap);
+    Scene->addPixmap(this->rawpixmap);
     //gi->setTransformationMode(Qt::SmoothTransformation);
 }
 
@@ -224,7 +215,8 @@ void MyGraphicsView::setViewPixmap(){
 }
 
 void MyGraphicsView::demosaic(int type){
-    QImage new_image(image.width(), image.height(), image.format());
+    QImage raw_image = image.convertToFormat(QImage::Format_RGB32);
+    QImage new_image(image.width(), image.height(), QImage::Format_RGB32);
 
     if(type == 0){ // none
         new_image = image.copy();
@@ -233,12 +225,12 @@ void MyGraphicsView::demosaic(int type){
     // Gr R
     // Gb B
     else if (type == 1){ // bayer
-        for (int r=0; r < image.height(); r+=2){
+        for (int r=0; r < raw_image.height(); r+=2){
             QRgb *new_scL1 = reinterpret_cast< QRgb *>( new_image.scanLine( r ) );
             QRgb *new_scL2 = reinterpret_cast< QRgb *>( new_image.scanLine( r+1 ) );
-            QRgb *scL1 = reinterpret_cast< QRgb *>( image.scanLine( r ) );
-            QRgb *scL2 = reinterpret_cast< QRgb *>( image.scanLine( r+1 ) );
-            for (int c=0; c < image.width(); c+=2){
+            QRgb *scL1 = reinterpret_cast< QRgb *>( raw_image.scanLine( r ));
+            QRgb *scL2 = reinterpret_cast< QRgb *>( raw_image.scanLine( r+1 ));
+            for (int c=0; c < raw_image.width(); c+=2){
                 //scL1[c]   = qRgb(0,             qRed(scL1[c]),0);       // Gr
                 //scL1[c+1] = qRgb(qRed(scL1[c+1]),0,0);                  // R
                 //scL1[c] = qRgb(0,qRed(scL1[c]),0);           // Gr
@@ -277,18 +269,18 @@ void MyGraphicsView::demosaic(int type){
         }*/
 
         // bilinear
-        for (int r=0; r < image.height(); r+=2){
+        for (int r=0; r < raw_image.height(); r+=2){
             QRgb *new_scL1 = reinterpret_cast< QRgb *>( new_image.scanLine( r ) );
             QRgb *new_scL2 = reinterpret_cast< QRgb *>( new_image.scanLine( r+1 ) );
-            QRgb *scL1 = reinterpret_cast< QRgb *>( image.scanLine( r ) );
-            QRgb *scL2 = reinterpret_cast< QRgb *>( image.scanLine( r+1 ) );
-            for (int c=0; c < image.width(); c+=2){
+            QRgb *scL1 = reinterpret_cast< QRgb *>( raw_image.scanLine( r ) );
+            QRgb *scL2 = reinterpret_cast< QRgb *>( raw_image.scanLine( r+1 ) );
+            for (int c=0; c < raw_image.width(); c+=2){
                 // Gr R
                 // B  Gb
                 int r_tr  = qRed(scL1[c+1]);    //
-                int r_nl  = (c>1) ? qRed(image.pixel(c-1,r)) : r_tr; // left
-                int r_nb  = (r+2<image.height()) ? qRed(image.pixel(c+1,r+2)) : r_tr; // bottom
-                int r_nlb = (r+2<image.height() && (c>1)) ? qRed(image.pixel(c-1,r+2)) : r_tr; // left-bottom
+                int r_nl  = (c>1) ? qRed(scL1[c-1]) : r_tr; // left
+                int r_nb  = (r+2<raw_image.height()) ? qRed(raw_image.pixel(c+1,r+2)) : r_tr; // bottom
+                int r_nlb = (r+2<raw_image.height() && (c>1)) ? qRed(raw_image.pixel(c-1,r+2)) : r_tr; // left-bottom
                 int r_tl = int((r_tr + r_nl) / 2.0f +0.5f);
                 int r_br = int((r_tr + r_nb) / 2.0f +0.5f);
                 int r_bl = int((r_tr + r_nl + r_nb + r_nlb) / 4.0f +0.5f);
@@ -374,6 +366,16 @@ void MyGraphicsView::savePixmap(){
                                                 "Images (*.png *.xpm *.jpg)");
     if (filename != ""){
         this->rawpixmap.save(filename);
+    }
+}
+
+void MyGraphicsView::saveRaw(){
+    QString filename = QFileDialog::getSaveFileName(0,
+                                                "Save File",
+                                                QDir::currentPath(),
+                                                "Images (*.png *.xpm *.jpg)");
+    if (filename != ""){
+        this->image.save(filename);
     }
 }
 

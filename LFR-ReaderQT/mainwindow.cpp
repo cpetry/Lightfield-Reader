@@ -10,6 +10,7 @@
 #include <QCheckBox>
 #include <QFileDialog>
 #include <QHBoxLayout>
+#include <QLabel>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -21,11 +22,11 @@ MainWindow::MainWindow(QWidget *parent) :
     tabWidget = new QTabWidget();
     h_layout->addWidget(tabWidget);
 
-
     ui->centralWidget->setLayout(h_layout);
 
-    connect(ui->actionFile, &QAction::triggered, this, &MainWindow::chooseFile);
-    //chooseFile();
+    connect(ui->actionLFP, &QAction::triggered, this, &MainWindow::chooseLFP);
+    connect(ui->actionLFImage, &QAction::triggered, this, &MainWindow::chooseLFImage);
+    chooseLFImage();
 }
 
 MainWindow::~MainWindow()
@@ -33,36 +34,69 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::chooseFile(){
-    QString file = QFileDialog::getOpenFileName(this, QString("Choose Lightfield File"), "../", QString("LightFields(*.LFP *.RAW *.TXT)"));
+void MainWindow::chooseLFImage(){
+    QString file = QFileDialog::getOpenFileName(this,
+                               QString("Choose Lightfield Image"),           // window name
+                               "../",                                       // relative folder
+                               QString("LightField Images(*.PNG *.JPG)"));  // filetype
     if (!file.isNull()){
         ui->statusBar->showMessage("Loading Lightfield...");
         tabWidget->clear();
 
-        // Loading RAW-file + optional txt file
-        if (file.endsWith("RAW", Qt::CaseInsensitive)){
-            // first read meta info
+        QHBoxLayout* view_layout = new QHBoxLayout();
+        QWidget* view_widget = new QWidget();
+        view_widget->setLayout(view_layout);
+        opengl_viewer = new QOpenGL_LFViewer(this, QImage(file));
+        view_layout->addWidget(opengl_viewer);
+        opengl_viewer->update();
+        tabWidget->addTab(view_widget,"View");
+    }
+}
+
+void MainWindow::chooseLFP(){
+
+    QString file = QFileDialog::getOpenFileName(this,
+                               QString("Choose Lightfield File"),           // window name
+                               "../",                                       // relative folder
+                               QString("LightFields(*.LFP *.RAW *.TXT)"));  // filetype
+
+    if (!file.isNull()){
+        ui->statusBar->showMessage("Loading Lightfield...");
+        tabWidget->clear();
+
+        // Loading LFP lightfield container
+        if (file.endsWith("lfp", Qt::CaseInsensitive))
+            reader.read_lfp(this, file.toStdString());
+
+        // Loading RAW + txt (optional)
+        else if (file.endsWith("RAW", Qt::CaseInsensitive)){
+
+            // first try to read meta info
             QString filename = file.split('.')[0];
             std::string txt_file = filename.toStdString() + ".TXT";
-            std::basic_ifstream<unsigned char> input(txt_file, std::ifstream::binary);
-            std::string text = reader.readText(input);
-            QString meta_info = QString::fromStdString(text);
-            setupMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
-            reader.parseLFMetaInfo(meta_info);
+
+            if (QFile(QString::fromStdString(txt_file)).exists()){
+                std::basic_ifstream<unsigned char> input(txt_file, std::ifstream::binary);
+                std::string text = reader.readText(input);
+                QString meta_info = QString::fromStdString(text);
+                addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
+                reader.parseLFMetaInfo(meta_info);
+            }
 
             // now reading raw file
             reader.read_RAWFile(this, file.toStdString());
 
         }
+
+        // Loading TXT file (only meta infos)
         else if (file.endsWith("TXT", Qt::CaseInsensitive)){
             std::basic_ifstream<unsigned char> input(file.toStdString(), std::ifstream::binary);
             std::string text = reader.readText(input);
             QString meta_info = QString::fromStdString(text);
-            setupMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
+            addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
             reader.parseLFMetaInfo(meta_info);
         }
-        else if (file.endsWith("lfp", Qt::CaseInsensitive))
-            reader.read_lfp(this, file.toStdString());
+
         ui->statusBar->showMessage("Finished!", 2000);
     }
     else
@@ -70,79 +104,96 @@ void MainWindow::chooseFile(){
 }
 
 
-void MainWindow::setupMetaInfos( QString header, QString sha1, int sec_length, QString metainfos, QString TabString){
+void MainWindow::addTabMetaInfos( QString header, QString sha1, int sec_length,
+                                 QString metainfos, QString TabString){
+
+    // Header infos
     QLabel* l_header = new QLabel("Header: " + header.toLatin1().toHex());
     QLabel* l_sha1 = new QLabel("Sha1: " + sha1);
     QLabel* l_infos = new QLabel("Bytes: " + QString::number(sec_length));
-
-    QWidget* complete_widget = new QWidget();
     QVBoxLayout* v_layout = new QVBoxLayout();
     v_layout->addWidget(l_header);
     v_layout->addWidget(l_sha1);
     v_layout->addWidget(l_infos);
 
+    // Meta infos inside textbrowser
     QTextBrowser* text_browser = new QTextBrowser();
     text_browser->setText(metainfos);
     v_layout->addWidget(text_browser);
 
+    // Container widget
+    QWidget* complete_widget = new QWidget();
     complete_widget->setLayout(v_layout);
     tabWidget->addTab(complete_widget, TabString);
 }
 
-void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage image, bool raw_image, LFP_Reader::lf_meta meta_infos){
+void MainWindow::addTabImage(QString header, QString sha1, int sec_length, QImage image,
+                           bool raw_image, LFP_Reader::lf_meta meta_infos){
+
+    // Header infos
     QLabel* l_header = new QLabel("Header: " + header.toLatin1().toHex());
     QLabel* l_sha1 = new QLabel("Sha1: " + sha1);
     QLabel* l_infos = new QLabel("Bytes: " + QString::number(sec_length));
     QLabel* imagesize = new QLabel("Size: " + QString::number(image.width()) + "x" + QString::number(image.height()));
 
-    QTabWidget* image_tab = new QTabWidget();
 
+    // Display widget for image
     color_view = new MyGraphicsView(NULL, image, meta_infos);
     QWidget* color_widget = new QWidget();
     QHBoxLayout* color_layout = new QHBoxLayout();
     color_widget->setLayout(color_layout);
     color_layout->addWidget(color_view);
+    QTabWidget* image_tab = new QTabWidget();
     image_tab->addTab(color_widget,"Color");
 
     if (raw_image){
+        // Color Tab
+        /////////////////
         QGridLayout* buttons_layout = new QGridLayout();
         QWidget* buttons_widget = new QWidget();
         buttons_widget->setLayout(buttons_layout);
+
         QPushButton *gray = new QPushButton("Gray");
         QPushButton *bayer = new QPushButton("Bayer");
         QPushButton *demosaic = new QPushButton("Demosaic");
+        connect( gray, SIGNAL(clicked()), color_view, SLOT(buttonGrayClicked()) );
+        connect( bayer, SIGNAL(clicked()), color_view, SLOT(buttonBayerClicked()) );
+        connect( demosaic, SIGNAL(clicked()), color_view, SLOT(buttonDemosaicClicked()) );
+        buttons_layout->addWidget(gray,0,1);
+        buttons_layout->addWidget(bayer,0,2);
+        buttons_layout->addWidget(demosaic,1,1);
 
+        // Color correction Tab
         QWidget* colorcorrect_options = new QWidget();
         QVBoxLayout* colorcorrect_options_layout = new QVBoxLayout();
         colorcorrect_options->setLayout(colorcorrect_options_layout);
+
         QCheckBox *checkWhiteBalance = new QCheckBox("WhiteBalance");
         QCheckBox *checkCCM = new QCheckBox("CCM");
         QCheckBox *checkGamma = new QCheckBox("Gamma");
         QPushButton *colorcorrect = new QPushButton("ColorCorrect");
-        QPushButton *save = new QPushButton("Save");
-        checkWhiteBalance->setChecked(true);
-        checkCCM->setChecked(true);
-        checkGamma->setChecked(true);
-        connect( gray, SIGNAL(clicked()), color_view, SLOT(buttonGrayClicked()) );
-        connect( bayer, SIGNAL(clicked()), color_view, SLOT(buttonBayerClicked()) );
-        connect( demosaic, SIGNAL(clicked()), color_view, SLOT(buttonDemosaicClicked()) );
+        QPushButton *saveImage = new QPushButton("SaveImage");
+        QPushButton *saveRaw = new QPushButton("SaveRaw");
         connect( checkWhiteBalance, SIGNAL(toggled(bool)), color_view, SLOT(toggleWhiteBalance(bool)) );
         connect( checkCCM, SIGNAL(toggled(bool)), color_view, SLOT(toggleCCM(bool)) );
         connect( checkGamma, SIGNAL(toggled(bool)), color_view, SLOT(toggleGamma(bool)) );
         connect( colorcorrect, SIGNAL(clicked()), color_view, SLOT(buttonColorCorrectClicked()) );
-        connect( save, SIGNAL(clicked()), color_view, SLOT(buttonSaveClicked()) );
-        buttons_layout->addWidget(gray,0,1);
-        buttons_layout->addWidget(bayer,0,2);
-        buttons_layout->addWidget(demosaic,1,1);
+        connect( saveImage, SIGNAL(clicked()), color_view, SLOT(savePixmap()) );
+        connect( saveRaw, SIGNAL(clicked()), color_view, SLOT(saveRaw()) );
+        checkWhiteBalance->setChecked(true);
+        checkCCM->setChecked(true);
+        checkGamma->setChecked(true);
         colorcorrect_options_layout->addWidget(checkWhiteBalance);
         colorcorrect_options_layout->addWidget(checkCCM);
         colorcorrect_options_layout->addWidget(checkGamma);
         colorcorrect_options_layout->addWidget(colorcorrect);
         buttons_layout->addWidget(colorcorrect_options,1,2);
-        buttons_layout->addWidget(save,2,2);
+        buttons_layout->addWidget(saveImage,2,1);
+        buttons_layout->addWidget(saveRaw,2,2);
         color_layout->addWidget(buttons_widget);
 
-
+        // Microlens tab
+        /////////////////
         microlens_view = new MyGraphicsView(NULL, image, meta_infos);
         microlens_view->demosaic(3);
         QGridLayout* microlens_options_layout = new QGridLayout();
@@ -165,6 +216,7 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
         connect( radiusx, SIGNAL(valueChanged(double)), microlens_view, SLOT(setLensletWidth(double)) );
         connect( radiusy, SIGNAL(valueChanged(double)), microlens_view, SLOT(setLensletHeight(double)) );
         connect( rotation, SIGNAL(valueChanged(double)), microlens_view, SLOT(setLensletRotation(double)) );
+        centerx->setValue(0);
         centerx->setValue(meta_infos.mla_centerOffset_x / meta_infos.mla_pixelPitch);
         centery->setValue(meta_infos.mla_centerOffset_y / meta_infos.mla_pixelPitch);
         radiusx->setValue((meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_x);
@@ -187,6 +239,8 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
         microlens_layout->addWidget(microlens_options_widget);
         image_tab->addTab(microlens_widget,"Microlenses");
 
+        // View tab
+        /////////////////
         QHBoxLayout* view_layout = new QHBoxLayout();
         QWidget* view_widget = new QWidget();
         view_widget->setLayout(view_layout);
@@ -200,12 +254,14 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
         QDoubleSpinBox *overlap = new QDoubleSpinBox();
         overlap->setDecimals(7);
         overlap->setValue((meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch));
-        //connect( overlap, SIGNAL(valueChanged(double)), opengl_viewer, SLOT(setOverlap(double)) );
+        connect( overlap, SIGNAL(valueChanged(double)), opengl_viewer, SLOT(setOverlap(double)) );
         view_options_layout->addWidget(new QLabel("Overlap:"),0,1);
         view_options_layout->addWidget(overlap,0,2);
         image_tab->addTab(view_widget,"View");
     }
 
+
+    // Container widget
     QWidget* complete_widget = new QWidget();
     QVBoxLayout* v_layout = new QVBoxLayout();
     v_layout->addWidget(l_header);
@@ -217,6 +273,3 @@ void MainWindow::setupView(QString header, QString sha1, int sec_length, QImage 
     tabWidget->addTab(complete_widget, "Image");
 }
 
-void MainWindow::addTextTab(QWidget* widget, QString string){
-    tabWidget->addTab(widget, string);
-}

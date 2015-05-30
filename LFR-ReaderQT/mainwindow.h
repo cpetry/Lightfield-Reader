@@ -18,12 +18,16 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
-    void setupMetaInfos( QString header, QString sha1, int sec_length, QString metainfos, QString TabString);
-    void setupView(QString header, QString sha1, int sec_length, QImage image, bool raw_image, LFP_Reader::lf_meta meta_infos);
-    void addTextTab(QWidget* widget, QString text);
+
+    void addTabMetaInfos( QString header, QString sha1, int sec_length,
+                         QString metainfos, QString TabString);
+
+    void addTabImage(QString header, QString sha1, int sec_length, QImage image,
+                   bool raw_image, LFP_Reader::lf_meta meta_infos);
 
 public slots:
-    void chooseFile();
+    void chooseLFP();
+    void chooseLFImage();
 
 private:
     Ui::MainWindow *ui;

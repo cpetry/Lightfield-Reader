@@ -1,81 +1,15 @@
 #include "lfp_reader.h"
-#include <fstream>
-#include <sstream>
-#include <stdint.h>
-#include <iostream>
-#include <streambuf>
-
-#include <algorithm>
-#include <functional>
-#include <cctype>
-#include <locale>
-
 #include "mainwindow.h"
 
-LFP_Reader::LFP_Reader(){};
 
-struct membuf : std::streambuf
-{
-    membuf(std::vector<char> &v) {
-        this->setg(v.data(), v.data(), v.data() + v.size());
-    }
-};
+unsigned char LFP[] = {0x89, 0x4C, 0x46, 0x50, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x01};
+unsigned char LFM[] = {0x89, 0x4C, 0x46, 0x4D, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x00};
+unsigned char LFC[] = {0x89, 0x4C, 0x46, 0x43, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x00};
 
-// trim from start
-static inline std::string &ltrim(std::string &s) {
-        s.erase(s.begin(), std::find_if(s.begin(), s.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
-        return s;
-}
-
-// trim from end
-static inline std::string &rtrim(std::string &s) {
-        s.erase(std::find_if(s.rbegin(), s.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
-        return s;
-}
-
-// trim from both ends
-static inline std::string &trim(std::string &s) {
-        return ltrim(rtrim(s));
-}
-
-std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
-    std::stringstream ss(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
-    return elems;
-}
-
-std::vector<std::string> split(const std::string &s, char delim) {
-    std::vector<std::string> elems;
-    split(s, delim, elems);
-    return elems;
-}
-
-static std::string getValueOf(std::string searchstr, std::string heystack, int from){
-    size_t pos = heystack.find(":", heystack.find(searchstr, from));
-    int str_size = 0;
-    if (heystack.find("[", pos) < heystack.find(",", pos)){
-        pos = heystack.find("[", pos)+1;
-        str_size = int(heystack.find("]", pos) - pos);
-    }
-    else{
-        str_size = int(std::min(heystack.find(",", pos), heystack.find("}", pos)) - pos);
-    }
-    return trim(heystack.substr(pos+1, str_size-1));
-}
-
-
-char LFP[12] = {0x89, 0x4C, 0x46, 0x50, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x01};
-char LFM[12] = {0x89, 0x4C, 0x46, 0x4D, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x00};
-char LFC[12] = {0x89, 0x4C, 0x46, 0x43, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x00};
-
-bool checkForByteSequence(std::basic_ifstream<unsigned char> &input, int len, char* sequence, char* alternative = {}){
+bool checkForByteSequence(std::basic_ifstream<unsigned char> &input, int len, unsigned char* sequence){
     for( int byte = 0; byte < len; ++byte){
-        char c = input.get();
-        if(sequence[byte] != c
-        && (sizeof(alternative) > 0 && alternative[byte] != c))
+        unsigned char c = input.get();
+        if(sequence[byte] != c)
             return false;
     }
     return true;
@@ -123,6 +57,8 @@ QImage LFP_Reader::readRawPixelData(std::basic_ifstream<unsigned char> &input, i
     int read_byte = 0;
     int nmb_byte = 0;
 
+    float multipl = 1.0f / (1023.0f - 64.0f) * 255.0f;
+
     while(row < image.height()){
         QRgb *scL = reinterpret_cast< QRgb *>( image.scanLine( row ) );
         while (col < image.width()){
@@ -157,12 +93,19 @@ QImage LFP_Reader::readRawPixelData(std::basic_ifstream<unsigned char> &input, i
                 uint16_t t3  = uint16_t(byte[3]) << 2;
                 uint16_t lsb = uint16_t(byte[4]);
 
+
+                /*t0 = t0 + ((lsb & 0x03)     ) - 64;
+                t1 = t1 + ((lsb & 0x0C) >> 2) - 64;
+                t2 = t2 + ((lsb & 0x30) >> 4) - 64;
+                t3 = t3 + ((lsb & 0xC0) >> 6) - 64;*/
+
+                // black seems to be a little less noisy
                 t3 = t3 + ((lsb & 0x03)     ) - 64;
                 t2 = t2 + ((lsb & 0x0C) >> 2) - 64;
                 t1 = t1 + ((lsb & 0x30) >> 4) - 64;
                 t0 = t0 + ((lsb & 0xC0) >> 6) - 64;
 
-                float multipl = 1.0f / (1023.0f - 64.0f) * 255;
+
                 // now everything is in 16bit representation
                 // -> to 8 bit
                 t0 = int((t0 * multipl)+0.5f);
@@ -170,7 +113,7 @@ QImage LFP_Reader::readRawPixelData(std::basic_ifstream<unsigned char> &input, i
                 t2 = int((t2 * multipl)+0.5f);
                 t3 = int((t3 * multipl)+0.5f);
 
-                scL[col] = qRgb(t0, t0, t0);
+                scL[col]   = qRgb(t0, t0, t0);
                 scL[col+1] = qRgb(t1, t1, t1);
                 scL[col+2] = qRgb(t2, t2, t2);
                 scL[col+3] = qRgb(t3, t3, t3);
@@ -191,6 +134,10 @@ QImage LFP_Reader::readRawPixelData(std::basic_ifstream<unsigned char> &input, i
     // just finish the section
     if (read_byte < section_length)
         readBytes(input, section_length - read_byte);
+
+    // Convert it to a smaller image in grayscale!
+    if (image.allGray())
+        image = image.convertToFormat(QImage::Format_Indexed8);
 
     return image;
 }
@@ -213,7 +160,7 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
     if (section_type == HEADER_TYPE::TYPE_TEXT){
         std::string text = readText(input, sec_length);
         QString meta_info = QString::fromStdString(text);
-        main->setupMetaInfos(byte_header, sha1_hash, sec_length, meta_info, "MetaInfo");
+        main->addTabMetaInfos(byte_header, sha1_hash, sec_length, meta_info, "MetaInfo");
         parseLFMetaInfo(meta_info);
     }
     else if (section_type == HEADER_TYPE::TYPE_PICTURE){
@@ -223,18 +170,18 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
         if (image.isNull()){ // retry with JPG
             image = QImage::fromData(pic, sec_length, "JPG");
         }
-        main->setupView(byte_header, sha1_hash, sec_length, image, false, meta_infos); // is a normal image
+        main->addTabImage(byte_header, sha1_hash, sec_length, image, false, meta_infos); // is a normal image
         delete(pic);
     }
     else if (section_type == HEADER_TYPE::TYPE_RAWPICTURE){
         QImage image = readRawPixelData(input, sec_length); // 10 bit per pixel
-        main->setupView(byte_header, sha1_hash, sec_length, image, true, meta_infos ); // is a raw image
+        main->addTabImage(byte_header, sha1_hash, sec_length, image, true, meta_infos ); // is a raw image
     }
     else if (section_type == HEADER_TYPE::TYPE_IGNORE){
         // just finish the section
         readBytes(input, sec_length);
         QString info = "Unknown Type";
-        main->setupMetaInfos(byte_header, sha1_hash, sec_length, "Unknown Type", "X");
+        main->addTabMetaInfos(byte_header, sha1_hash, sec_length, "Unknown Type", "X");
         correct = true;
     }
     else
@@ -316,7 +263,7 @@ bool LFP_Reader::read_RAWFile(MainWindow* main, std::string file ){
     int sec_length = getSectionLength(input);
 
     QImage image = readRawPixelData(input, sec_length);
-    main->setupView("No Header", "No SHA1", sec_length, image, true, this->meta_infos); // is a raw image
+    main->addTabImage("No Header", "No SHA1", sec_length, image, true, this->meta_infos); // is a raw image
 
     return true;
 }
@@ -334,7 +281,7 @@ bool LFP_Reader::read_lfp(MainWindow* main, std::string file){
         return false;
 
     // 4byte nothing (00 00 00 00)
-    char nothing[4] = {0x00, 0x00, 0x00, 0x00};
+    unsigned char nothing[4] = {0x00, 0x00, 0x00, 0x00};
     if(!checkForByteSequence(input, 4, nothing))
         return false;
 

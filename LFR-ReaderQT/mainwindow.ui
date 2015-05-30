@@ -27,7 +27,8 @@
     <property name="title">
      <string>Load</string>
     </property>
-    <addaction name="actionFile"/>
+    <addaction name="actionLFP"/>
+    <addaction name="actionLFImage"/>
    </widget>
    <addaction name="menuLoad"/>
   </widget>
@@ -40,9 +41,14 @@
    </attribute>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
-  <action name="actionFile">
+  <action name="actionLFP">
    <property name="text">
-    <string>File</string>
+    <string>LFP</string>
+   </property>
+  </action>
+  <action name="actionLFImage">
+   <property name="text">
+    <string>LF Image</string>
    </property>
   </action>
  </widget>

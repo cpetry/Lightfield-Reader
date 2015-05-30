@@ -14,9 +14,15 @@ class QOpenGL_LFViewer : public QOpenGLWidget, protected QOpenGLFunctions
     Q_OBJECT
 
 public:
-    QOpenGL_LFViewer(QWidget *parent, QImage image);
+    /*
+     * Initializes the viewer with a lightfield-image
+     */
+    QOpenGL_LFViewer(QWidget *parent, QImage &image);
     ~QOpenGL_LFViewer();
 
+    /*
+     * Defines the minimum size of the widget
+     */
     QSize minimumSizeHint() const Q_DECL_OVERRIDE;
     QSize sizeHint() const Q_DECL_OVERRIDE;
     void setClearColor(const QColor &color);
@@ -26,11 +32,16 @@ public slots:
     void focus_changed(int value);
     void focus_radius_changed(int value);
     void getNextFrame();
+    void setOverlap(double o);
 
 protected:
     void initializeGL() Q_DECL_OVERRIDE;
     void paintGL() Q_DECL_OVERRIDE;
     void resizeGL(int width, int height) Q_DECL_OVERRIDE;
+
+    /*
+     * Events
+     */
     void mousePressEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
     void mouseMoveEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
     void mouseReleaseEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
@@ -41,6 +52,7 @@ private:
     void makeObject();
     QColor clearColor;
     QImage texture;
+    bool texture_is_raw = false;
     QOpenGLShaderProgram *program;
     QOpenGLBuffer vbo;
     QOpenGLFunctions_3_3_Core *_func330;
@@ -56,4 +68,5 @@ private:
     float focus = 0, focus_radius=0;
     int frame_current = 0;
     int frame_max = 1;
+    double overlap = 14.29;
 };

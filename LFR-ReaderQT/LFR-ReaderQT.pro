@@ -15,14 +15,16 @@ TEMPLATE = app
 SOURCES += main.cpp\
         mainwindow.cpp \
     lfp_reader.cpp \
-    aspectratiopixmaplabel.cpp \
     myqgraphicsview.cpp \
     qopengl_lfviewer.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
-    aspectratiopixmaplabel.h \
     myqgraphicsview.h \
     qopengl_lfviewer.h
 
 FORMS    += mainwindow.ui
+
+DISTFILES += \
+    lightfield.fsh \
+    lightfield_raw.fsh
