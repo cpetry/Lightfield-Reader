@@ -206,9 +206,7 @@ std::string LFP_Reader::readText(std::basic_ifstream<unsigned char> &input, int 
 
 void LFP_Reader::parseLFMetaInfo(QString meta_info){
 
-    if (meta_info.contains(QString("\"image\""), Qt::CaseInsensitive)
-      //&& meta_info.contains(QString("ILLUM"), Qt::CaseInsensitive)
-            ){
+    if (meta_info.contains(QString("\"image\""), Qt::CaseInsensitive)){
 
         std::string smeta = meta_info.toStdString();
         size_t pos = smeta.find("image");
@@ -222,12 +220,12 @@ void LFP_Reader::parseLFMetaInfo(QString meta_info){
         for (int i = 0; i < 9; i++)
             meta_infos.cc[i] = atof(cc_split[i].c_str());
 
-        pos = smeta.find("sensor");
-        meta_infos.mla_pixelPitch = atof(getValueOf("\"pixelPitch\"", smeta, int(pos)).c_str());
-
         pos = smeta.find("whiteBalanceGain");
         meta_infos.r_bal = atof(getValueOf("\"r\"", smeta, int(pos)).c_str());
         meta_infos.b_bal = atof(getValueOf("\"b\"", smeta, int(pos)).c_str());
+
+        pos = smeta.find("sensor");
+        meta_infos.mla_pixelPitch = atof(getValueOf("\"pixelPitch\"", smeta, int(pos)).c_str());
 
         pos = smeta.find("mla");
         meta_infos.mla_rotation = atof(getValueOf("rotation", smeta, int(pos)).c_str());

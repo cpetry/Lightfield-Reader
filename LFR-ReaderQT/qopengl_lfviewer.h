@@ -6,6 +6,8 @@
 #include <QOpenGLBuffer>
 #include <QOpenGLTexture>
 
+#include "lfp_reader.h"
+
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram);
 QT_FORWARD_DECLARE_CLASS(QOpenGLTexture)
 
@@ -17,7 +19,7 @@ public:
     /*
      * Initializes the viewer with a lightfield-image
      */
-    QOpenGL_LFViewer(QWidget *parent, QImage &image);
+    QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos);
     ~QOpenGL_LFViewer();
 
     /*
@@ -53,6 +55,8 @@ private:
     QColor clearColor;
     QImage texture;
     bool texture_is_raw = false;
+    LFP_Reader::lf_meta meta_infos;
+
     QOpenGLShaderProgram *program;
     QOpenGLBuffer vbo;
     QOpenGLFunctions_3_3_Core *_func330;

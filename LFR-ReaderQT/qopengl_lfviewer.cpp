@@ -5,13 +5,16 @@
 #include <QMouseEvent>
 #include <QGenericMatrix>
 
-QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image)
+QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent),
       clearColor(Qt::black),
       program(0)
 {
-    if (image.format() == QImage::Format_Indexed8)
+    this->meta_infos = meta_infos;
+
+    if (image.format() == QImage::Format_Indexed8){
         texture_is_raw = true;
+    }
     else
         texture_is_raw = false;
 
@@ -72,9 +75,9 @@ void QOpenGL_LFViewer::initializeGL()
     QOpenGLShader *vshader = new QOpenGLShader(QOpenGLShader::Vertex, this);
     const char *vsrc =
         "attribute highp vec4 vertex;\n"
-        "attribute mediump vec4 texCoord;\n"
-        "varying mediump vec4 texc;\n"
-        "uniform mediump mat4 matrix;\n"
+        "attribute highp vec4 texCoord;\n"
+        "varying highp vec4 texc;\n"
+        "uniform highp mat4 matrix;\n"
         "void main(void)\n"
         "{\n"
         "    gl_Position = matrix * vertex;\n"
@@ -103,11 +106,11 @@ void QOpenGL_LFViewer::initializeGL()
 
     program->setUniformValue("matrix", m);
 
-    double centerx = -5.23571;
-    double centery = 3.97761;
-    double radiusx = 14.28571;
-    double radiusy = 14.28757;
-    double lenslet_rotation = 0.0012772;
+    double centerx = meta_infos.mla_centerOffset_x / meta_infos.mla_pixelPitch;
+    double centery = meta_infos.mla_centerOffset_y / meta_infos.mla_pixelPitch;
+    double radiusx = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_x;
+    double radiusy = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_y;
+    double lenslet_rotation = meta_infos.mla_rotation;
 
 
     float dy_rot_PerLenslet_hori = -tan(lenslet_rotation) * radiusx;
@@ -125,14 +128,15 @@ void QOpenGL_LFViewer::initializeGL()
     program->setUniformValue("dx_row_odd", dx_row_odd);
     program->setUniformValue("lenslet_dim", QPoint(radiusx, radiusy));
     program->setUniformValue("centerLens_pos", centerLens_pos);
-    program->setUniformValue("tex_dim", QPoint(texture.width(), texture.height()));
+    program->setUniformValue("tex_dim", QPoint(meta_infos.width, meta_infos.height));
+    program->setUniformValue("white_balance", QPointF(meta_infos.r_bal,meta_infos.b_bal));
 
 
     glGenTextures(1, &texture_id);
     glBindTexture( GL_TEXTURE_2D, texture_id);
 
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
@@ -204,7 +208,7 @@ void QOpenGL_LFViewer::mouseMoveEvent(QMouseEvent *event)
     int dx = event->x() - lastPos.x();
     int dy = event->y() - lastPos.y();
 
-    //translation = QPointF(translation.x() + dx * 0.004f * orthosize, translation.y() + dy * 0.004f * orthosize);
+    translation = QPointF(translation.x() + dx * 0.004f * orthosize, translation.y() + dy * 0.004f * orthosize);
     lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.001f, lens_pos_view.y() - dy * 0.001f);
     lastPos = event->pos();
     update();

@@ -33,6 +33,7 @@ public slots:
     void toggleGamma(bool v){ enable_Gamma = v; }
     void savePixmap();
     void saveRaw();
+    void saveMetaInfo(QString filename);
 
 protected:
     //Take over the interaction

@@ -43,10 +43,22 @@ void MainWindow::chooseLFImage(){
         ui->statusBar->showMessage("Loading Lightfield...");
         tabWidget->clear();
 
+        // first try to read meta info
+        QString filename = file.split('.')[0];
+        std::string txt_file = filename.toStdString() + ".TXT";
+
+        if (QFile(QString::fromStdString(txt_file)).exists()){
+            std::basic_ifstream<unsigned char> input(txt_file, std::ifstream::binary);
+            std::string text = reader.readText(input);
+            QString meta_info = QString::fromStdString(text);
+            addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
+            reader.parseLFMetaInfo(meta_info);
+        }
+
         QHBoxLayout* view_layout = new QHBoxLayout();
         QWidget* view_widget = new QWidget();
         view_widget->setLayout(view_layout);
-        opengl_viewer = new QOpenGL_LFViewer(this, QImage(file));
+        opengl_viewer = new QOpenGL_LFViewer(this, QImage(file), reader.meta_infos);
         view_layout->addWidget(opengl_viewer);
         opengl_viewer->update();
         tabWidget->addTab(view_widget,"View");
@@ -244,7 +256,7 @@ void MainWindow::addTabImage(QString header, QString sha1, int sec_length, QImag
         QHBoxLayout* view_layout = new QHBoxLayout();
         QWidget* view_widget = new QWidget();
         view_widget->setLayout(view_layout);
-        opengl_viewer = new QOpenGL_LFViewer(this, microlens_view->getFinishedImage());
+        opengl_viewer = new QOpenGL_LFViewer(this, microlens_view->getFinishedImage(), meta_infos);
         view_layout->addWidget(opengl_viewer);
         opengl_viewer->update();
 

@@ -17,5 +17,6 @@ void main(void)
     vec2 pixel_in_lense_pos = lenslet_m * pixel_in_lense;
     vec2 texel_pos = (centerLens_pos + pixel_in_lense_pos) / tex_dim;
     gl_FragColor = texture2D(texture, texel_pos);
+    //gl_FragColor = texture2D(texture, texc.st);
 };
 
