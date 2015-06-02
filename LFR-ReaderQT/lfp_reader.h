@@ -31,6 +31,7 @@ public:
         int bits;
         int width;
         int height;
+        double modulationExposureBias;
         float cc[9];
         float r_bal;
         float b_bal;

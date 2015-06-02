@@ -223,7 +223,7 @@ void MyGraphicsView::demosaic(int type){
     }
     // mosaic: bayer
     // Gr R
-    // Gb B
+    // B  Gb
     else if (type == 1){ // bayer
         for (int r=0; r < raw_image.height(); r+=2){
             QRgb *new_scL1 = reinterpret_cast< QRgb *>( new_image.scanLine( r ) );
@@ -333,9 +333,9 @@ void MyGraphicsView::demosaic(int type){
                     new_r = (r * ccm(0,0)) + (g * ccm(0,1)) + (b * ccm(0,2));
                     new_g = (r * ccm(1,0)) + (g * ccm(1,1)) + (b * ccm(1,2));
                     new_b = (r * ccm(2,0)) + (g * ccm(2,1)) + (b * ccm(2,2));
-                    new_r = fmax(0,fmin(new_r, min_sat)) / min_sat;
-                    new_g = fmax(0,fmin(new_g, min_sat)) / min_sat;
-                    new_b = fmax(0,fmin(new_b, min_sat)) / min_sat;
+                    //new_r = fmax(0,fmin(new_r, min_sat)) / min_sat;
+                    //new_g = fmax(0,fmin(new_g, min_sat)) / min_sat;
+                    //new_b = fmax(0,fmin(new_b, min_sat)) / min_sat;
                 }
 
                 if (enable_Gamma){
@@ -412,6 +412,7 @@ void MyGraphicsView::saveMetaInfo(QString filename){
         meta_string += "\t},\n";
         meta_string += "\t\"width\": " + QString::number(meta_infos.width) + ",\n";
         meta_string += "\t\"height\": " + QString::number(meta_infos.height) + ",\n";
+        meta_string += "\t\"modulationExposureBias\": " + QString::number(meta_infos.modulationExposureBias, 'g', 16) + ",\n";
         meta_string += "\t\"color\": { \n";
             meta_string += "\t\t\"whiteBalanceGain\": { \n";
                 meta_string += "\t\t\t\"gr\": " + QString::number(1.0) + ",\n";

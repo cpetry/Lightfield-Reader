@@ -1,9 +1,10 @@
 #include "qopengl_lfviewer.h"
 
-#include <QOpenGLShaderProgram>
+
 #include <QOpenGLTexture>
 #include <QMouseEvent>
 #include <QGenericMatrix>
+#include <QFileDialog>
 
 QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent),
@@ -55,7 +56,8 @@ void QOpenGL_LFViewer::initializeGL()
     frame_max = 10;
 
     initializeOpenGLFunctions();
-    _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
+    //_func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
+    _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_1>();
     if (_func330)
         _func330->initializeOpenGLFunctions();
     else
@@ -118,10 +120,13 @@ void QOpenGL_LFViewer::initializeGL()
     QPointF centerLens_pos = QPointF(texture.width()/2.0f + centerx, texture.height()/2.0f - centery);
     float dy_PerLenslet_row = sqrt(pow(radiusx,2) - pow(radiusx/2.0f,2));
     float dx_row_odd = 0.5f*radiusx;
-    float matrix[] = {radiusx, dx_rot_PerLenslet_vert,
+    float lens_letmatrix[] = {radiusx, dx_rot_PerLenslet_vert,
                     dy_rot_PerLenslet_hori, dy_PerLenslet_row};
-    QMatrix2x2 lenslet_m(matrix);
+    QMatrix3x3 ccm(meta_infos.cc);
+    QMatrix2x2 lenslet_m(lens_letmatrix);
     program->setUniformValue("lenslet_m", lenslet_m);
+    program->setUniformValue("ccm", ccm.transposed());
+    program->setUniformValue("modulationExposureBias", float(meta_infos.modulationExposureBias));
     program->setUniformValue("dy_rot_PerLenslet_hori", dy_rot_PerLenslet_hori);
     program->setUniformValue("dx_rot_PerLenslet_vert", dx_rot_PerLenslet_vert);
     program->setUniformValue("dy_PerLenslet_row", dy_PerLenslet_row);
@@ -129,7 +134,7 @@ void QOpenGL_LFViewer::initializeGL()
     program->setUniformValue("lenslet_dim", QPoint(radiusx, radiusy));
     program->setUniformValue("centerLens_pos", centerLens_pos);
     program->setUniformValue("tex_dim", QPoint(meta_infos.width, meta_infos.height));
-    program->setUniformValue("white_balance", QPointF(meta_infos.r_bal,meta_infos.b_bal));
+    program->setUniformValue("white_balance", QVector3D(meta_infos.r_bal,1.0f,meta_infos.b_bal));
 
 
     glGenTextures(1, &texture_id);
@@ -152,6 +157,8 @@ void QOpenGL_LFViewer::initializeGL()
     qWarning() << texture.byteCount();
 }
 
+
+
 void QOpenGL_LFViewer::paintGL()
 {
     glClearColor(clearColor.redF(), clearColor.greenF(), clearColor.blueF(), clearColor.alphaF());
@@ -164,6 +171,13 @@ void QOpenGL_LFViewer::paintGL()
     QMatrix4x4 m;
     m.ortho(-orthosize, +orthosize, +orthosize, -orthosize, 0.0f, 10.0f);
     m.translate(translation.x(), translation.y(), -1.0f);
+
+    program->setUniformValue("view_mode", opengl_view_mode);
+    program->setUniformValue("option_wb", opengl_option_wb);
+    program->setUniformValue("option_ccm", opengl_option_ccm);
+    program->setUniformValue("option_gamma", opengl_option_gamma);
+    program->setUniformValue("option_superresolution", opengl_option_superresolution);
+
 
     program->setUniformValue("matrix", m);
     program->setUniformValue("lens_pos_view", lens_pos_view);
@@ -200,6 +214,7 @@ void QOpenGL_LFViewer::resizeGL(int width, int height)
 
 void QOpenGL_LFViewer::mousePressEvent(QMouseEvent *event)
 {
+    currentButton = event->button();
     lastPos = event->pos();
 }
 
@@ -208,8 +223,12 @@ void QOpenGL_LFViewer::mouseMoveEvent(QMouseEvent *event)
     int dx = event->x() - lastPos.x();
     int dy = event->y() - lastPos.y();
 
-    translation = QPointF(translation.x() + dx * 0.004f * orthosize, translation.y() + dy * 0.004f * orthosize);
-    lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.001f, lens_pos_view.y() - dy * 0.001f);
+    if (currentButton == Qt::LeftButton){
+        translation = QPointF(translation.x() + dx * 0.004f * orthosize, translation.y() + dy * 0.004f * orthosize);
+    }
+    else if(currentButton == Qt::RightButton){
+        lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.01f, lens_pos_view.y() - dy * 0.01f);
+    }
     lastPos = event->pos();
     update();
 }
@@ -253,6 +272,7 @@ void QOpenGL_LFViewer::wheelEvent(QWheelEvent * event){
 
 void QOpenGL_LFViewer::mouseReleaseEvent(QMouseEvent * /* event */)
 {
+    currentButton = Qt::MidButton;
 }
 
 void QOpenGL_LFViewer::makeObject(){
@@ -275,5 +295,51 @@ void QOpenGL_LFViewer::makeObject(){
     vbo.bind();
     vbo.allocate(vertData.constData(), vertData.count() * sizeof(GLfloat));
 
+}
+
+void QOpenGL_LFViewer::saveRaw(){
+    QString filename = QFileDialog::getSaveFileName(0,
+                                                "Save File",
+                                                QDir::currentPath(),
+                                                "Images (*.png *.xpm *.jpg)");
+
+    QVector<QRgb> colorTable;
+    QImage retImg(texture.width(),texture.height(),QImage::Format_Indexed8);
+    QVector<QRgb> table( 256 );
+    for( int i = 0; i < 256; ++i )
+    {
+        table[i] = qRgb(i,i,i);
+    }
+    retImg.setColorTable(table);
+    for(int i =0; i< texture.width();i++)
+    {
+        for(int j=0; j< texture.height();j++)
+        {
+            QRgb value = texture.pixel(i,j);
+            retImg.setPixel(i,j,qRed(value));
+        }
+
+    }
+
+    if (filename != ""){
+        retImg.save(filename);
+    }
+
+    //saveMetaInfo(filename);
+}
+
+
+void QOpenGL_LFViewer::saveImage(){
+    //glViewport((width - side) / 2, (height - side) / 2, side, side);
+    //update();
+    QString filename = QFileDialog::getSaveFileName(0,
+                                                "Save File",
+                                                QDir::currentPath(),
+                                                "Images (*.png *.xpm *.jpg)");
+    if (filename != ""){
+        this->grabFramebuffer().save(filename);
+    }
+
+    //saveMetaInfo(filename);
 }
 

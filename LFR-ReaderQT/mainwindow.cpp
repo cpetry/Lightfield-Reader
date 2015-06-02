@@ -62,6 +62,65 @@ void MainWindow::chooseLFImage(){
         view_layout->addWidget(opengl_viewer);
         opengl_viewer->update();
         tabWidget->addTab(view_widget,"View");
+
+        // Color Tab
+        /////////////////
+        QGridLayout* buttons_layout = new QGridLayout();
+        QWidget* buttons_widget = new QWidget();
+        buttons_widget->setMaximumSize(300,1000);
+        buttons_widget->setLayout(buttons_layout);
+
+        QPushButton *gray = new QPushButton("Gray");
+        QPushButton *bayer = new QPushButton("Bayer");
+        QPushButton *demosaic = new QPushButton("Demosaic");
+        connect( gray, SIGNAL(clicked()), opengl_viewer, SLOT(buttonGrayClicked()) );
+        connect( bayer, SIGNAL(clicked()), opengl_viewer, SLOT(buttonBayerClicked()) );
+        connect( demosaic, SIGNAL(clicked()), opengl_viewer, SLOT(buttonDemosaicClicked()) );
+        buttons_layout->addWidget(gray,0,1);
+        buttons_layout->addWidget(bayer,0,2);
+        buttons_layout->addWidget(demosaic,1,1);
+
+        // Color correction Tab
+        QWidget* colorcorrect_options = new QWidget();
+        QVBoxLayout* colorcorrect_options_layout = new QVBoxLayout();
+        colorcorrect_options->setLayout(colorcorrect_options_layout);
+        QCheckBox *checkWhiteBalance = new QCheckBox("WhiteBalance");
+        QCheckBox *checkCCM = new QCheckBox("CCM");
+        QCheckBox *checkGamma = new QCheckBox("Gamma");
+        connect( checkWhiteBalance, SIGNAL(toggled(bool)), opengl_viewer, SLOT(toggleWhiteBalance(bool)) );
+        connect( checkCCM, SIGNAL(toggled(bool)), opengl_viewer, SLOT(toggleCCM(bool)) );
+        connect( checkGamma, SIGNAL(toggled(bool)), opengl_viewer, SLOT(toggleGamma(bool)) );
+        //connect( saveImage, SIGNAL(clicked()), opengl_viewer, SLOT(savePixmap()) );
+        //connect( saveRaw, SIGNAL(clicked()), opengl_viewer, SLOT(saveRaw()) );
+        checkWhiteBalance->setChecked(true);
+        checkCCM->setChecked(true);
+        checkGamma->setChecked(true);
+        colorcorrect_options_layout->addWidget(checkWhiteBalance);
+        colorcorrect_options_layout->addWidget(checkCCM);
+        colorcorrect_options_layout->addWidget(checkGamma);
+        buttons_layout->addWidget(colorcorrect_options,1,2);
+
+        QWidget* display_options = new QWidget();
+        QVBoxLayout* display_options_layout = new QVBoxLayout();
+        display_options->setLayout(display_options_layout);
+        QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
+        QPushButton *display = new QPushButton("Display");
+        connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_viewer, SLOT(toggleSuperResolution(bool)) );
+        connect( display, SIGNAL(clicked()), opengl_viewer, SLOT(buttonDisplayClicked()) );
+        checkSuperResolution->setChecked(true);
+        display_options_layout->addWidget(checkSuperResolution);
+        display_options_layout->addWidget(display);
+        buttons_layout->addWidget(display_options,2,1);
+
+        QPushButton *saveImage = new QPushButton("SaveImage");
+        QPushButton *saveRaw = new QPushButton("SaveRaw");
+
+        connect( saveImage, SIGNAL(clicked()), opengl_viewer, SLOT(saveImage()) );
+        connect( saveRaw, SIGNAL(clicked()), opengl_viewer, SLOT(saveRaw()) );
+        buttons_layout->addWidget(saveImage,3,1);
+        buttons_layout->addWidget(saveRaw,3,2);
+        view_layout->addWidget(buttons_widget);
+
     }
 }
 

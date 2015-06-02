@@ -2,9 +2,11 @@
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
-#include <QOpenGLFunctions_3_3_Core>
+//#include <QOpenGLFunctions_3_3_Core>
+#include <QOpenGLFunctions_3_1>
 #include <QOpenGLBuffer>
 #include <QOpenGLTexture>
+#include <QOpenGLShaderProgram>
 
 #include "lfp_reader.h"
 
@@ -36,6 +38,17 @@ public slots:
     void getNextFrame();
     void setOverlap(double o);
 
+    void buttonGrayClicked(){ opengl_view_mode = 0; update();}
+    void buttonBayerClicked(){ opengl_view_mode = 1; update();}
+    void buttonDemosaicClicked(){ opengl_view_mode = 2; update();}
+    void buttonDisplayClicked(){ opengl_view_mode = 3; update();}
+    void toggleWhiteBalance(bool v){ opengl_option_wb = v; update();}
+    void toggleCCM(bool v){ opengl_option_ccm = v;  update();}
+    void toggleGamma(bool v){ opengl_option_gamma = v;  update();}
+    void toggleSuperResolution(bool v){ opengl_option_superresolution = v; update();}
+    void saveImage();
+    void saveRaw();
+
 protected:
     void initializeGL() Q_DECL_OVERRIDE;
     void paintGL() Q_DECL_OVERRIDE;
@@ -59,9 +72,12 @@ private:
 
     QOpenGLShaderProgram *program;
     QOpenGLBuffer vbo;
-    QOpenGLFunctions_3_3_Core *_func330;
+    //QOpenGLFunctions_3_3_Core *_func330;
+    QOpenGLFunctions_3_1 *_func330;
     QOpenGLContext *_context;
     QPoint lastPos;
+    Qt::MouseButton currentButton = Qt::MidButton;
+
     GLuint texture_id;
     float orthosize = 1.0f;
     QPointF translation = QPointF(0.0f, 0.0f);
@@ -73,4 +89,9 @@ private:
     int frame_current = 0;
     int frame_max = 1;
     double overlap = 14.29;
+    int opengl_view_mode = 0;
+    bool opengl_option_wb = true;
+    bool opengl_option_ccm = true;
+    bool opengl_option_gamma = true;
+    bool opengl_option_superresolution = true;
 };

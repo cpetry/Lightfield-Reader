@@ -213,6 +213,7 @@ void LFP_Reader::parseLFMetaInfo(QString meta_info){
 
         this->meta_infos.bits = atoi(getValueOf("bitsPerPixel", smeta, int(pos)).c_str());
         this->meta_infos.width = atoi(getValueOf("width", smeta, int(pos)).c_str());
+        this->meta_infos.modulationExposureBias = atof(getValueOf("modulationExposureBias", smeta, int(pos)).c_str());
         this->meta_infos.height = atoi(getValueOf("height", smeta, int(pos)).c_str());
 
         std::string cc = getValueOf("ccm", smeta, int(pos)).c_str();
