@@ -151,10 +151,11 @@ void QOpenGL_LFViewer::initializeGL()
     else
         _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texture.width(),
                     texture.height(), 0, GL_BGRA, GL_UNSIGNED_BYTE, texture.bits());
+
     glEnable(GL_TEXTURE_2D);
 
     texture = QImage(0,0);
-    qWarning() << texture.byteCount();
+    //qWarning() << texture.byteCount();
 }
 
 
