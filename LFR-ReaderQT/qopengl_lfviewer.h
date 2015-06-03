@@ -2,11 +2,19 @@
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
-//#include <QOpenGLFunctions_3_3_Core>
-#include <QOpenGLFunctions_3_1>
+#include <QOpenGLFunctions_3_3_Core>
+//#include <QOpenGLFunctions_3_1>
 #include <QOpenGLBuffer>
 #include <QOpenGLTexture>
 #include <QOpenGLShaderProgram>
+#include <QElapsedTimer>
+#include <QTimer>
+#include <QMovie>
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
 
 #include "lfp_reader.h"
 
@@ -63,8 +71,14 @@ protected:
     void wheelEvent(QWheelEvent * event) Q_DECL_OVERRIDE;
     QOpenGLContext *m_context;
 
+private slots:
+    void _tick();
+
 private:
+    void open_video();
+    void close_video();
     void makeObject();
+    cv::VideoCapture* _capture = NULL;
     QColor clearColor;
     QImage texture;
     bool texture_is_raw = false;
@@ -72,11 +86,12 @@ private:
 
     QOpenGLShaderProgram *program;
     QOpenGLBuffer vbo;
-    //QOpenGLFunctions_3_3_Core *_func330;
-    QOpenGLFunctions_3_1 *_func330;
+    QOpenGLFunctions_3_3_Core *_func330;
+    //QOpenGLFunctions_3_1 *_func330;
     QOpenGLContext *_context;
     QPoint lastPos;
     Qt::MouseButton currentButton = Qt::MidButton;
+    QTimer myTimer;
 
     GLuint texture_id;
     float orthosize = 1.0f;
@@ -84,6 +99,9 @@ private:
     QPointF lens_pos_view = QPointF(0.0f, 0.0f);
 
     int tex_index = 0;
+    int time_count = 0;
+    int frame_count = 0;
+    int frames_total = 0;
     float cur_u = 0, cur_v = 0;
     float focus = 0, focus_radius=0;
     int frame_current = 0;
@@ -94,4 +112,6 @@ private:
     bool opengl_option_ccm = true;
     bool opengl_option_gamma = true;
     bool opengl_option_superresolution = true;
+signals:
+    void closed();
 };

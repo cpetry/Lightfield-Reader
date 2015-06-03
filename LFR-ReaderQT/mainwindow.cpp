@@ -129,14 +129,15 @@ void MainWindow::chooseLFP(){
     QString file = QFileDialog::getOpenFileName(this,
                                QString("Choose Lightfield File"),           // window name
                                "../",                                       // relative folder
-                               QString("LightFields(*.LFP *.RAW *.TXT)"));  // filetype
+                               QString("LightFields(*.LFP *.LFR *.RAW *.TXT)"));  // filetype
 
     if (!file.isNull()){
         ui->statusBar->showMessage("Loading Lightfield...");
         tabWidget->clear();
 
         // Loading LFP lightfield container
-        if (file.endsWith("lfp", Qt::CaseInsensitive))
+        if (file.endsWith("lfp", Qt::CaseInsensitive)
+                || file.endsWith("lfr", Qt::CaseInsensitive))
             reader.read_lfp(this, file.toStdString());
 
         // Loading RAW + txt (optional)

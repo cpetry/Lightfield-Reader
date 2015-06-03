@@ -192,6 +192,6 @@ void main(void)
     // b =? 3.699999999999999e-5;
     // a.x = d.x * b / (x + 1/3 + n)
 
-    gl_FragColor = vec4(1,1,0,1);
+    //gl_FragColor = vec4(1,1,0,1);
 
 }

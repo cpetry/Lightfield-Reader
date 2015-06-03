@@ -5,6 +5,9 @@
 #include <QMouseEvent>
 #include <QGenericMatrix>
 #include <QFileDialog>
+#include <QTimer>
+#include <QMediaPlayer>
+#include <QVideoWidget>
 
 QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent),
@@ -56,8 +59,8 @@ void QOpenGL_LFViewer::initializeGL()
     frame_max = 10;
 
     initializeOpenGLFunctions();
-    //_func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
-    _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_1>();
+    _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
+    //_func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_1>();
     if (_func330)
         _func330->initializeOpenGLFunctions();
     else
@@ -145,6 +148,8 @@ void QOpenGL_LFViewer::initializeGL()
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
+    glEnable(GL_TEXTURE_2D);
+
     if (texture_is_raw)
         _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, texture.width(),
                     texture.height(), 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, texture.bits());
@@ -152,23 +157,145 @@ void QOpenGL_LFViewer::initializeGL()
         _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texture.width(),
                     texture.height(), 0, GL_BGRA, GL_UNSIGNED_BYTE, texture.bits());
 
-    glEnable(GL_TEXTURE_2D);
+    program->enableAttributeArray(PROGRAM_VERTEX_ATTRIBUTE);
+    program->enableAttributeArray(PROGRAM_TEXCOORD_ATTRIBUTE);
+    program->setAttributeBuffer(PROGRAM_VERTEX_ATTRIBUTE, GL_FLOAT, 0, 3, 5 * sizeof(GLfloat));
+    program->setAttributeBuffer(PROGRAM_TEXCOORD_ATTRIBUTE, GL_FLOAT, 3 * sizeof(GLfloat), 2, 5 * sizeof(GLfloat));
 
-    texture = QImage(0,0);
+    open_video();
+    //texture = QImage(0,0);
     //qWarning() << texture.byteCount();
+
+    //QTimer *timer = new QTimer(this);
+    //connect(timer, SIGNAL(timeout()), this, SLOT(update()));
+    //timer->start(1000/30);
 }
 
+void QOpenGL_LFViewer::_tick()
+{
+    /* This method is called every couple of milliseconds.
+     * It reads from the OpenCV's capture interface and saves a frame as QImage
+     */
+    cv::Mat frame;
+    *_capture >> frame;
+    if (frames_total == frame_count+1)
+    {
+        qDebug() << "cvWindow::_tick !!! Failed to read frame from the capture interface";
+        //myTimer.stop();
+        _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
+        *_capture >> frame;
+        frame_count = 0;
+        // should now work again :)
+        if (_capture->get(CV_CAP_PROP_POS_FRAMES) == 0 && frame.empty()){
+            qDebug() << "cvWindow::_tick !!! cant rewind";
+            myTimer.stop();
+            return;
+        }
+    }
+    frame_count++;
 
+    // Since OpenCV uses BGR order, we need to convert it to RGB
+    cv::cvtColor(frame, frame, CV_BGR2RGB);
+
+    // Copy cv::Mat to QImage
+    std::memcpy(texture.scanLine(0), (unsigned char*)frame.data, texture.width() * texture.height() * frame.channels());
+
+    // The same as above, but much worse.
+    //QImage img = QImage((uchar*) frame.data, frame.cols, frame.rows, frame.step, QImage::Format_RGB888);
+    //*_image = img.copy();
+
+    // Trigger paint event to redraw the window
+    update();
+}
+
+void QOpenGL_LFViewer::open_video()
+{
+    // Display dialog so the user can select a file
+    QString filename = QFileDialog::getOpenFileName(this,
+                                                    tr("Open Video"),
+                                                    QDir::currentPath(),
+                                                    tr("Files (*.*)"));
+
+    if (filename.isEmpty()) // Do nothing if filename is empty
+        return;
+
+    // If its already capturing, stop and release it!
+    if (_capture != NULL && _capture->isOpened())
+    {
+        _capture->release();
+        delete _capture;
+    }
+
+    // Create a new capture interface based on the filename
+    _capture = new cv::VideoCapture(filename.toStdString());
+    if (!_capture->isOpened())
+    {
+        qDebug() << "cvWindow::_open !!! Unable to open " << filename;
+        setWindowTitle(tr("QT Video demo with OpenCV"));
+        return;
+    }
+
+    // Set the filename as the window title
+    setWindowTitle(filename);
+
+    // Retrieve the width/height of the video. If not possible, then use the current size of the window
+    int video_width = 0;
+    video_width = _capture->get(CV_CAP_PROP_FRAME_WIDTH);
+    int video_height = 0;
+    video_height = _capture->get(CV_CAP_PROP_FRAME_HEIGHT);
+    qDebug() << "cvWindow::_open default size is " << video_width << "x" << video_height;
+
+    if (!video_width || !video_height)
+    {
+        video_width = width();
+        video_height = height();
+    }
+
+    // Resize the window to fit video dimensions
+    resize(video_width, video_height);
+
+    // Retrieve fps from the video. If not available, default will be 25
+    int fps = 0;
+    frames_total = _capture->get(CV_CAP_PROP_FRAME_COUNT);
+    fps = _capture->get(CV_CAP_PROP_FPS);
+    qDebug() << "cvWindow::_open default fps is " << fps;
+
+    if (!fps)
+        fps = 30;
+
+    // Set FPS playback
+    int tick_ms = 1000/fps;
+
+    // _image is created according to video dimensions
+    texture = QImage(video_width, video_height, QImage::Format_RGB32);
+
+    // Start timer to read frames from the capture interface
+    myTimer.start(tick_ms);
+    QObject::connect(&myTimer, SIGNAL(timeout()), this, SLOT(_tick()));
+}
+
+void QOpenGL_LFViewer::close_video()
+{
+    qDebug() << "cvWindow::_close";
+    emit closed();
+}
 
 void QOpenGL_LFViewer::paintGL()
 {
     glClearColor(clearColor.redF(), clearColor.greenF(), clearColor.blueF(), clearColor.alphaF());
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    program->enableAttributeArray(PROGRAM_VERTEX_ATTRIBUTE);
-    program->enableAttributeArray(PROGRAM_TEXCOORD_ATTRIBUTE);
-    program->setAttributeBuffer(PROGRAM_VERTEX_ATTRIBUTE, GL_FLOAT, 0, 3, 5 * sizeof(GLfloat));
-    program->setAttributeBuffer(PROGRAM_TEXCOORD_ATTRIBUTE, GL_FLOAT, 3 * sizeof(GLfloat), 2, 5 * sizeof(GLfloat));
+    if (texture.isNull())
+    {
+        return;
+    }
+
+    _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, texture.width(),
+                texture.height(), 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, texture.bits());
+
+    /*
+
+
     QMatrix4x4 m;
     m.ortho(-orthosize, +orthosize, +orthosize, -orthosize, 0.0f, 10.0f);
     m.translate(translation.x(), translation.y(), -1.0f);
@@ -183,18 +310,23 @@ void QOpenGL_LFViewer::paintGL()
     program->setUniformValue("matrix", m);
     program->setUniformValue("lens_pos_view", lens_pos_view);
 
-    /*program->setUniformValue("u_coord", cur_u);
+    program->setUniformValue("u_coord", cur_u);
     program->setUniformValue("v_coord", cur_v);
     program->setUniformValue("focus", focus);
     program->setUniformValue("focus_radius", focus_radius);
-    program->setUniformValue("frame", frame_current);*/
-
+    program->setUniformValue("frame", frame_current);
+    */
     glActiveTexture(texture_id);
     glBindTexture( GL_TEXTURE_2D, texture_id);
 
     for (int i = 0; i < 1; ++i) {
         glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
     }
+
+    //program->release();
+
+    //myTimer.start();
+
 }
 
 
@@ -204,7 +336,7 @@ void QOpenGL_LFViewer::getNextFrame(){
     if (frame_current > frame_max)
         frame_current = 0;
     qWarning() << "current frame: " + QString::number(frame_current);
-    update();
+    //update();
 }
 
 void QOpenGL_LFViewer::resizeGL(int width, int height)
@@ -231,17 +363,17 @@ void QOpenGL_LFViewer::mouseMoveEvent(QMouseEvent *event)
         lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.01f, lens_pos_view.y() - dy * 0.01f);
     }
     lastPos = event->pos();
-    update();
+    //update();
 }
 
 void QOpenGL_LFViewer::setOverlap(double o){
     overlap = o;
-    update();
+    //update();
 }
 
 void QOpenGL_LFViewer::focus_changed(int value){
     focus = value / 100.0f;
-    update();
+    //update();
 }
 
 void QOpenGL_LFViewer::focus_radius_changed(int value){
@@ -256,7 +388,7 @@ void QOpenGL_LFViewer::focus_radius_changed(int value){
         cur_v = max_value - focus_radius;
     else if (cur_v - focus_radius <= min_value)
         cur_v = min_value + focus_radius;
-    update();
+    //update();
 }
 
 void QOpenGL_LFViewer::wheelEvent(QWheelEvent * event){
@@ -268,7 +400,7 @@ void QOpenGL_LFViewer::wheelEvent(QWheelEvent * event){
         orthosize *= scaleFactor;
     }
 
-    update();
+    //update();
 }
 
 void QOpenGL_LFViewer::mouseReleaseEvent(QMouseEvent * /* event */)
