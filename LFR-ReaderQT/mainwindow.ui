@@ -28,9 +28,24 @@
      <string>Load</string>
     </property>
     <addaction name="actionLFP"/>
+    <addaction name="actionExtractLFFolder"/>
+   </widget>
+   <widget class="QMenu" name="menuVideo">
+    <property name="title">
+     <string>Video</string>
+    </property>
+    <addaction name="actionCreateFromPNGs"/>
+    <addaction name="actionPlayer"/>
+   </widget>
+   <widget class="QMenu" name="menuImage">
+    <property name="title">
+     <string>Image</string>
+    </property>
     <addaction name="actionLFImage"/>
    </widget>
    <addaction name="menuLoad"/>
+   <addaction name="menuImage"/>
+   <addaction name="menuVideo"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -49,6 +64,21 @@
   <action name="actionLFImage">
    <property name="text">
     <string>LF Image</string>
+   </property>
+  </action>
+  <action name="actionExtractLFFolder">
+   <property name="text">
+    <string>ExtractLFFolder</string>
+   </property>
+  </action>
+  <action name="actionCreateFromPNGs">
+   <property name="text">
+    <string>CreateFromPNGs</string>
+   </property>
+  </action>
+  <action name="actionPlayer">
+   <property name="text">
+    <string>Player</string>
    </property>
   </action>
  </widget>

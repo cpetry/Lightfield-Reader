@@ -12,16 +12,18 @@ TARGET = LFR-ReaderQT
 TEMPLATE = app
 
 
-SOURCES += main.cpp\
+SOURCES += main.cpp \
         mainwindow.cpp \
     lfp_reader.cpp \
     myqgraphicsview.cpp \
-    qopengl_lfviewer.cpp
+    qopengl_lfviewer.cpp \
+    qopengl_lfvideoplayer.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
     myqgraphicsview.h \
-    qopengl_lfviewer.h
+    qopengl_lfviewer.h \
+    qopengl_lfvideoplayer.h
 
 FORMS    += mainwindow.ui
 
@@ -36,19 +38,21 @@ win32 {
     #MSVCRT_LINK_FLAG_RELEASE = "/MD"
 
     message("* Using settings for Windows.")
-    INCLUDEPATH += "E:\\Libraries\\open_cv\\build\\include" \
-                   "E:\\Libraries\\open_cv\\build\\include\\opencv" \
-                   "E:\\Libraries\\open_cv\\build\\include\\opencv2"
+    INCLUDEPATH += E:/Libraries/open_cv/build/include \
+                   E:/Libraries/open_cv/build/include/opencv \
+                   E:/Libraries/open_cv/build/include/opencv2
 
     CONFIG(debug, debug | release) {
-        LIBS += -L"E:\\Libraries\\open_cv\\build\\x64\\vc12\\lib" \
+        LIBS += -LE:/Libraries/open_cv/build/x64/vc12/lib \
+            -LE:/Libraries/open_cv/build/x64/vc12/bin \
             -lopencv_core2411d \
             -lopencv_highgui2411d \
             -lopencv_imgproc2411d
     }
 
     CONFIG(release, debug | release) {
-        LIBS += -L"E:\\Libraries\\open_cv\\build\\x64\\vc12\\lib" \
+        LIBS += -LE:/Libraries/open_cv/build/x64/vc12/lib \
+            -LE:/Libraries/open_cv/build/x64/vc12/bin \
             -lopencv_core2411 \
             -lopencv_highgui2411 \
             -lopencv_imgproc2411

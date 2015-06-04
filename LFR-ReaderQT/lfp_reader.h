@@ -46,7 +46,7 @@ public:
 
     lf_meta meta_infos;
 
-    bool read_lfp(MainWindow *main, std::string file);
+    bool read_lfp(MainWindow *main, std::string file, bool save_raw_to_file = false, std::string raw_file_name = "");
     bool read_RAWFile(MainWindow* main, std::string file);
     void parseLFMetaInfo(QString meta_info);
     std::vector<char> readBytes(std::basic_ifstream<unsigned char> &input, int nmb_bytes = 0);
@@ -58,7 +58,8 @@ private:
         NONE, TYPE_LFP, TYPE_TEXT, TYPE_PICTURE, TYPE_RAWPICTURE, TYPE_IGNORE
     };
 
-    bool readSection(MainWindow *main, std::basic_ifstream<unsigned char> &input, HEADER_TYPE section_type);
+    bool readSection(MainWindow *main, std::basic_ifstream<unsigned char> &input,
+                     HEADER_TYPE section_type, std::string raw_file_name = 0);
     QImage readRawPixelData(std::basic_ifstream<unsigned char> &input, int section_length);
 
 

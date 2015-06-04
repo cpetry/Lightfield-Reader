@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include "myqgraphicsview.h"
 #include "qopengl_lfviewer.h"
+#include "qopengl_lfvideoplayer.h"
 
 #include "lfp_reader.h"
 
@@ -28,12 +29,14 @@ public:
 public slots:
     void chooseLFP();
     void chooseLFImage();
+    void chooseExtractRawLFFolder();
+    void chooseCreateVideoFromPNGs();
+    void chooseVideoPlayer();
 
 private:
     Ui::MainWindow *ui;
     MyGraphicsView* color_view, *microlens_view;
     QTabWidget* tabWidget;
-    QOpenGL_LFViewer *opengl_viewer;
     LFP_Reader reader;
 };
 

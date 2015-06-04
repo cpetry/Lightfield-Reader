@@ -142,7 +142,8 @@ QImage LFP_Reader::readRawPixelData(std::basic_ifstream<unsigned char> &input, i
     return image;
 }
 
-bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char> &input, HEADER_TYPE section_type){
+bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char> &input,
+                             HEADER_TYPE section_type, std::string save_file_name){
 
     // magic 12 byte Header
     std::vector<char> bytes = readBytes(input, 12);
@@ -160,7 +161,10 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
     if (section_type == HEADER_TYPE::TYPE_TEXT){
         std::string text = readText(input, sec_length);
         QString meta_info = QString::fromStdString(text);
-        main->addTabMetaInfos(byte_header, sha1_hash, sec_length, meta_info, "MetaInfo");
+        // if we want to save several images, we dont need tabs
+        if(save_file_name.empty()){
+            main->addTabMetaInfos(byte_header, sha1_hash, sec_length, meta_info, "MetaInfo");
+        }
         parseLFMetaInfo(meta_info);
     }
     else if (section_type == HEADER_TYPE::TYPE_PICTURE){
@@ -170,12 +174,33 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
         if (image.isNull()){ // retry with JPG
             image = QImage::fromData(pic, sec_length, "JPG");
         }
+
         main->addTabImage(byte_header, sha1_hash, sec_length, image, false, meta_infos); // is a normal image
         delete(pic);
     }
     else if (section_type == HEADER_TYPE::TYPE_RAWPICTURE){
         QImage image = readRawPixelData(input, sec_length); // 10 bit per pixel
-        main->addTabImage(byte_header, sha1_hash, sec_length, image, true, meta_infos ); // is a raw image
+
+        // if we want to save several images, we dont need tabs
+        if(!save_file_name.empty()){
+            QImage retImg(image.width(),image.height(),QImage::Format_Indexed8);
+            QVector<QRgb> table( 256 );
+            for( int i = 0; i < 256; ++i )
+                table[i] = qRgb(i,i,i);
+
+            retImg.setColorTable(table);
+            for(int i =0; i< image.width();i++)
+                for(int j=0; j< image.height();j++)
+                    retImg.setPixel(i,j,qRed(image.pixel(i,j)));
+
+            bool saved = retImg.save(QString::fromStdString(save_file_name));
+            if (saved)
+                qDebug() << "Saved raw to " << QString::fromStdString(save_file_name);
+            else
+                qDebug() << "Could not save to " << QString::fromStdString(save_file_name);
+        }
+        else
+            main->addTabImage(byte_header, sha1_hash, sec_length, image, true, meta_infos ); // is a raw image
     }
     else if (section_type == HEADER_TYPE::TYPE_IGNORE){
         // just finish the section
@@ -267,7 +292,7 @@ bool LFP_Reader::read_RAWFile(MainWindow* main, std::string file ){
     return true;
 }
 
-bool LFP_Reader::read_lfp(MainWindow* main, std::string file){
+bool LFP_Reader::read_lfp(MainWindow* main, std::string file, bool save_raw_to_file, std::string raw_file_name){
     std::basic_ifstream<unsigned char> input(file, std::ifstream::binary);
 
     // magic 12 byte File Header
@@ -297,7 +322,7 @@ bool LFP_Reader::read_lfp(MainWindow* main, std::string file){
 
     std::cout << "( " << sizeof(types_illum)/sizeof(HEADER_TYPE) << " Sections )" << std::endl;
     for(int i = 0; i < sizeof(types_illum)/sizeof(HEADER_TYPE); i++)
-        if(!readSection(main, input, ptypes[i]))
+        if(!readSection(main, input, ptypes[i], raw_file_name))
             return false;
 
     return true;

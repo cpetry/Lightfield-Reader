@@ -38,12 +38,10 @@ public:
     QSize minimumSizeHint() const Q_DECL_OVERRIDE;
     QSize sizeHint() const Q_DECL_OVERRIDE;
     void setClearColor(const QColor &color);
-    void setTextures(QList<QImage*> images);
 
 public slots:
     void focus_changed(int value);
     void focus_radius_changed(int value);
-    void getNextFrame();
     void setOverlap(double o);
 
     void buttonGrayClicked(){ opengl_view_mode = 0; update();}
@@ -71,12 +69,7 @@ protected:
     void wheelEvent(QWheelEvent * event) Q_DECL_OVERRIDE;
     QOpenGLContext *m_context;
 
-private slots:
-    void _tick();
-
 private:
-    void open_video();
-    void close_video();
     void makeObject();
     cv::VideoCapture* _capture = NULL;
     QColor clearColor;
