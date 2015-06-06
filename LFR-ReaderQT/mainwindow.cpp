@@ -101,11 +101,16 @@ void MainWindow::chooseVideoPlayer(){
     display_options->setLayout(display_options_layout);
     QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
     QPushButton *display = new QPushButton("Display");
+    QSlider* focus_slider = new QSlider(Qt::Vertical, this);
+    connect( focus_slider, SIGNAL(valueChanged(int)), opengl_movieplayer, SLOT(focus_changed(int)));
     connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleSuperResolution(bool)) );
     connect( display, SIGNAL(clicked()), opengl_movieplayer, SLOT(buttonDisplayClicked()) );
+    focus_slider->setMaximum(250);
+    focus_slider->setMinimum(-250);
     checkSuperResolution->setChecked(true);
     display_options_layout->addWidget(checkSuperResolution);
     display_options_layout->addWidget(display);
+    display_options_layout->addWidget(focus_slider);
     buttons_layout->addWidget(display_options,2,1);
 
     view_layout->addWidget(buttons_widget);

@@ -1,13 +1,15 @@
+#ifndef QOPENGL_LFVIDEOPLAYER_H
+#define QOPENGL_LFVIDEOPLAYER_H
+
 #pragma once
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
-#include <QOpenGLFunctions_4_2_Core>
+#include <QOpenGLFunctions_3_3_Core>
 //#include <QOpenGLFunctions_3_1>
 #include <QOpenGLBuffer>
 #include <QOpenGLTexture>
 #include <QOpenGLShaderProgram>
-#include <QOpenGLFramebufferObject>
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QMovie>
@@ -22,7 +24,7 @@
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram);
 QT_FORWARD_DECLARE_CLASS(QOpenGLTexture)
 
-class QOpenGL_LFViewer : public QOpenGLWidget, protected QOpenGLFunctions
+class QOpengl_LFVideoPlayer : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
 
@@ -30,8 +32,8 @@ public:
     /*
      * Initializes the viewer with a lightfield-image
      */
-    QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos);
-    ~QOpenGL_LFViewer();
+    QOpengl_LFVideoPlayer(QWidget *parent, LFP_Reader::lf_meta meta_infos);
+    ~QOpengl_LFVideoPlayer();
 
     /*
      * Defines the minimum size of the widget
@@ -42,7 +44,8 @@ public:
 
 public slots:
     void focus_changed(int value);
-    void focus_radius_changed(int value);
+    //void focus_radius_changed(int value);
+    void getNextFrame();
     void setOverlap(double o);
 
     void buttonGrayClicked(){ opengl_view_mode = 0; update();}
@@ -53,8 +56,7 @@ public slots:
     void toggleCCM(bool v){ opengl_option_ccm = v;  update();}
     void toggleGamma(bool v){ opengl_option_gamma = v;  update();}
     void toggleSuperResolution(bool v){ opengl_option_superresolution = v; update();}
-    void saveImage();
-    void saveRaw();
+    void open_video();
 
 protected:
     void initializeGL() Q_DECL_OVERRIDE;
@@ -70,34 +72,39 @@ protected:
     void wheelEvent(QWheelEvent * event) Q_DECL_OVERRIDE;
     QOpenGLContext *m_context;
 
+private slots:
+    void _tick();
+
 private:
+    void close_video();
     void makeObject();
     cv::VideoCapture* _capture = NULL;
     QColor clearColor;
     QImage texture;
+
     bool texture_is_raw = false;
     LFP_Reader::lf_meta meta_infos;
 
     QOpenGLShaderProgram *program, *focusprogram;
     QOpenGLBuffer vbo;
-    QOpenGLFunctions_4_2_Core *_func330;
+    QOpenGLFunctions_3_3_Core *_func330;
     //QOpenGLFunctions_3_1 *_func330;
     QOpenGLContext *_context;
     QPoint lastPos;
     Qt::MouseButton currentButton = Qt::MidButton;
     QTimer myTimer;
 
-    GLuint texture_id, framebuffer, renderedTexture_id, renderedTex_id, lightfield_id;
+
     float orthosize = 1.0f;
     QPointF translation = QPointF(0.0f, 0.0f);
     QPointF lens_pos_view = QPointF(0.0f, 0.0f);
+    GLuint texture_id, framebuffer, renderedTexture_id, renderedTex_id, lightfield_id;
 
     int tex_index = 0;
     int time_count = 0;
     int frame_count = 0;
     int frames_total = 0;
-    float cur_u = 0, cur_v = 0;
-    float focus = 0, focus_radius=0;
+    float focus = 0, focus_radius=15;
     int frame_current = 0;
     int frame_max = 1;
     double overlap = 14.29;
@@ -106,6 +113,9 @@ private:
     bool opengl_option_ccm = true;
     bool opengl_option_gamma = true;
     bool opengl_option_superresolution = true;
+
 signals:
     void closed();
 };
+
+#endif // QOPENGL_LFVIDEOPLAYER_H

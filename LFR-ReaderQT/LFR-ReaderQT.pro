@@ -28,8 +28,10 @@ HEADERS  += mainwindow.h \
 FORMS    += mainwindow.ui
 
 DISTFILES += \
-    lightfield.fsh \
-    lightfield_raw.fsh
+    lightfield_raw.fsh \
+    lightfield_raw.vert \
+    uvlightfield_focus.fsh \
+    uvlightfield_focus.vert
 
 ## OpenCV settings for Windows and OpenCV 2.4.2
 win32 {
