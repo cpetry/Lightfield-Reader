@@ -53,10 +53,31 @@ void MainWindow::chooseExtractRawLFFolder(){
 }
 
 void MainWindow::chooseVideoPlayer(){
+    // Display dialog so the user can select a file
+    QString filename = QFileDialog::getOpenFileName(this,
+                                            tr("Open Video"),
+                                            QDir::currentPath(),
+                                            tr("Files (*.*)"));
+
+    if (filename.isEmpty()) // Do nothing if filename is empty
+        return;
+
+    // first try to read meta info
+    QString metafile = filename.split('.')[0];
+    std::string txt_file = metafile.toStdString() + ".TXT";
+
+    if (QFile(QString::fromStdString(txt_file)).exists()){
+        std::basic_ifstream<unsigned char> input(txt_file, std::ifstream::binary);
+        std::string text = reader.readText(input);
+        QString meta_info = QString::fromStdString(text);
+        //addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
+        reader.parseLFMetaInfo(meta_info);
+    }
+
     QHBoxLayout* view_layout = new QHBoxLayout();
     QWidget* view_widget = new QWidget();
     view_widget->setLayout(view_layout);
-    QOpengl_LFVideoPlayer *opengl_movieplayer = new QOpengl_LFVideoPlayer(this, reader.meta_infos);
+    QOpenGL_LFViewer *opengl_movieplayer = new QOpenGL_LFViewer(this, filename, true, reader.meta_infos);
     view_layout->addWidget(opengl_movieplayer);
     opengl_movieplayer->update();
     tabWidget->addTab(view_widget,"View");
@@ -99,23 +120,25 @@ void MainWindow::chooseVideoPlayer(){
     QWidget* display_options = new QWidget();
     QVBoxLayout* display_options_layout = new QVBoxLayout();
     display_options->setLayout(display_options_layout);
-    QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
     QPushButton *display = new QPushButton("Display");
     QSlider* focus_slider = new QSlider(Qt::Vertical, this);
     connect( focus_slider, SIGNAL(valueChanged(int)), opengl_movieplayer, SLOT(focus_changed(int)));
-    connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleSuperResolution(bool)) );
     connect( display, SIGNAL(clicked()), opengl_movieplayer, SLOT(buttonDisplayClicked()) );
     focus_slider->setMaximum(250);
     focus_slider->setMinimum(-250);
-    checkSuperResolution->setChecked(true);
-    display_options_layout->addWidget(checkSuperResolution);
+    //QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
+    //connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleSuperResolution(bool)) );
+    //checkSuperResolution->setChecked(true);
+    //display_options_layout->addWidget(checkSuperResolution);
+    QCheckBox *demosaic_render = new QCheckBox("Demosaic");
+    connect( demosaic_render, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(renderDemosaic(bool)) );
+    demosaic_render->setChecked(false);
+    display_options_layout->addWidget(demosaic_render);
     display_options_layout->addWidget(display);
     display_options_layout->addWidget(focus_slider);
     buttons_layout->addWidget(display_options,2,1);
 
     view_layout->addWidget(buttons_widget);
-
-    opengl_movieplayer->open_video();
 }
 
 void MainWindow::chooseCreateVideoFromPNGs(){
@@ -125,47 +148,49 @@ void MainWindow::chooseCreateVideoFromPNGs(){
                             QString("LightField Images(*.PNG *.JPG)"));   // filetype
 
 
-    cv::VideoWriter outputVideo;
+    if(!files.empty()){
+        cv::VideoWriter outputVideo;
 
-    // Open the output
-    QImage info(files[0]);
-    cv::Size S = cv::Size(info.width(), info.height());
-    std::string name = files[0].split("_0")[0].toStdString() + ".avi";
-    std::string codec = "YV12"; // FFV1, MPEG
-    char c[4];
-    strcpy(c, codec.c_str());
-    outputVideo.open(name, CV_FOURCC(c[0],c[1],c[2],c[3]), 5, S, false);
+        // Open the output
+        QImage info(files[0]);
+        cv::Size S = cv::Size(info.width(), info.height());
+        std::string name = files[0].split("_0")[0].toStdString() + ".avi";
+        std::string codec = "YV12"; // FFV1, MPEG
+        char c[4];
+        strcpy(c, codec.c_str());
+        outputVideo.open(name, CV_FOURCC(c[0],c[1],c[2],c[3]), 5, S, false);
 
-    if (!outputVideo.isOpened())
-    {
-        qDebug() << "Could not open the output video for write: " << QString::fromStdString(name) << endl;
-        return;
-    }
-
-    qDebug() << "Input frame resolution: Width=" << info.width() << "  Height=" << info.height()
-         << endl;
-    qDebug() << "Input codec type: " << QString::fromStdString(codec) << endl;
-
-    cv::Mat src, res;
-    std::vector<cv::Mat> spl;
-
-    for(int i=0;i<files.length();i++) //Show the image captured in the window and repeat
-    {
-        spl.clear();
-        src = cv::imread((files[i]).toStdString(), CV_LOAD_IMAGE_ANYDEPTH);              // read
-        if (src.empty()){
-            qDebug() << "src is empty \n file:" << files[i];
-            break;         // check if at end
+        if (!outputVideo.isOpened())
+        {
+            qDebug() << "Could not open the output video for write: " << QString::fromStdString(name) << endl;
+            return;
         }
 
-        /*for( int i =0; i < 3; ++i)
-              spl.push_back(src);
-        merge(spl, res);*/
+        qDebug() << "Input frame resolution: Width=" << info.width() << "  Height=" << info.height()
+             << endl;
+        qDebug() << "Input codec type: " << QString::fromStdString(codec) << endl;
 
-        //outputVideo.write(res); //save or
-        outputVideo << src;
+        cv::Mat src, res;
+        std::vector<cv::Mat> spl;
+
+        for(int i=0;i<files.length();i++) //Show the image captured in the window and repeat
+        {
+            spl.clear();
+            src = cv::imread((files[i]).toStdString(), CV_LOAD_IMAGE_ANYDEPTH);              // read
+            if (src.empty()){
+                qDebug() << "src is empty \n file:" << files[i];
+                break;         // check if at end
+            }
+
+            /*for( int i =0; i < 3; ++i)
+                  spl.push_back(src);
+            merge(spl, res);*/
+
+            //outputVideo.write(res); //save or
+            outputVideo << src;
+        }
+        qDebug() << "Finished writing" << endl;
     }
-    qDebug() << "Finished writing" << endl;
 }
 
 void MainWindow::chooseLFImage(){
@@ -237,12 +262,16 @@ void MainWindow::chooseLFImage(){
         QWidget* display_options = new QWidget();
         QVBoxLayout* display_options_layout = new QVBoxLayout();
         display_options->setLayout(display_options_layout);
-        QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
         QPushButton *display = new QPushButton("Display");
-        connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_viewer, SLOT(toggleSuperResolution(bool)) );
         connect( display, SIGNAL(clicked()), opengl_viewer, SLOT(buttonDisplayClicked()) );
-        checkSuperResolution->setChecked(true);
-        display_options_layout->addWidget(checkSuperResolution);
+        //QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
+        //connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_viewer, SLOT(toggleSuperResolution(bool)) );
+        //checkSuperResolution->setChecked(true);
+        //display_options_layout->addWidget(checkSuperResolution);
+        QCheckBox *demosaic_render = new QCheckBox("Is demosaicked");
+        connect( demosaic_render, SIGNAL(toggled(bool)), opengl_viewer, SLOT(renderDemosaic(bool)) );
+        demosaic_render->setChecked(false);
+        display_options_layout->addWidget(demosaic_render);
         display_options_layout->addWidget(display);
         buttons_layout->addWidget(display_options,2,1);
 

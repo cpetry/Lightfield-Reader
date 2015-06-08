@@ -34,8 +34,8 @@
     <property name="title">
      <string>Video</string>
     </property>
-    <addaction name="actionCreateFromPNGs"/>
     <addaction name="actionPlayer"/>
+    <addaction name="actionCreateFromPNGs"/>
    </widget>
    <widget class="QMenu" name="menuImage">
     <property name="title">
@@ -58,12 +58,12 @@
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionLFP">
    <property name="text">
-    <string>LFP</string>
+    <string>Read LFP</string>
    </property>
   </action>
   <action name="actionLFImage">
    <property name="text">
-    <string>LF Image</string>
+    <string>Open LF Image</string>
    </property>
   </action>
   <action name="actionExtractLFFolder">
@@ -78,7 +78,7 @@
   </action>
   <action name="actionPlayer">
    <property name="text">
-    <string>Player</string>
+    <string>Open Video</string>
    </property>
   </action>
  </widget>

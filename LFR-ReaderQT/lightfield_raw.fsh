@@ -208,6 +208,7 @@ void main(void)
 
         st = vec2(0.5,0.5) - st; // from center
         st *= size_st; // size of st plane
+        //st *= (tex_dim / vec2(12,lenslet_dim.y));
         st = floor(st + vec2(0.5f,0.5f)); // exact st position
 
         color = recalcPosAtSTUV(st, uv).rgb;

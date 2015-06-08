@@ -56,7 +56,8 @@ public slots:
     void toggleCCM(bool v){ opengl_option_ccm = v;  update();}
     void toggleGamma(bool v){ opengl_option_gamma = v;  update();}
     void toggleSuperResolution(bool v){ opengl_option_superresolution = v; update();}
-    void open_video();
+    void renderDemosaic(bool v) {opengl_option_demosaic = v; update();}
+    void open_video(QString filename);
 
 protected:
     void initializeGL() Q_DECL_OVERRIDE;
@@ -81,8 +82,6 @@ private:
     cv::VideoCapture* _capture = NULL;
     QColor clearColor;
     QImage texture;
-
-    bool texture_is_raw = false;
     LFP_Reader::lf_meta meta_infos;
 
     QOpenGLShaderProgram *program, *focusprogram;
@@ -113,6 +112,8 @@ private:
     bool opengl_option_ccm = true;
     bool opengl_option_gamma = true;
     bool opengl_option_superresolution = true;
+    bool opengl_option_demosaic = false;
+    bool texture_is_raw = false;
 
 signals:
     void closed();

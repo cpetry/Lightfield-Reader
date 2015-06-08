@@ -11,7 +11,8 @@
 QOpengl_LFVideoPlayer::QOpengl_LFVideoPlayer(QWidget *parent, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent),
       clearColor(Qt::black),
-      program(0)
+      program(0),
+      focusprogram(0)
 {
     this->meta_infos = meta_infos;
 }
@@ -43,7 +44,6 @@ void QOpengl_LFVideoPlayer::setClearColor(const QColor &color)
 
 void QOpengl_LFVideoPlayer::initializeGL()
 {
-    initializeOpenGLFunctions();
     _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
     //_func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_1>();
     if (_func330)
@@ -62,44 +62,15 @@ void QOpengl_LFVideoPlayer::initializeGL()
 #define PROGRAM_VERTEX_ATTRIBUTE 0
 #define PROGRAM_TEXCOORD_ATTRIBUTE 1
 
-    QOpenGLShader *vshader = new QOpenGLShader(QOpenGLShader::Vertex, this);
-    const char *vsrc =
-        "attribute highp vec4 vertex;\n"
-        "attribute highp vec4 texCoord;\n"
-        "varying highp vec4 texc;\n"
-        "uniform highp mat4 matrix;\n"
-        "void main(void)\n"
-        "{\n"
-        "    gl_Position = matrix * vertex;\n"
-        "    texc = texCoord;\n"
-        "}\n";
-    vshader->compileSourceCode(vsrc);
-
-    QOpenGLShader *fshader = new QOpenGLShader(QOpenGLShader::Fragment, this);
-    fshader->compileSourceFile("lightfield_raw.fsh");
-
-    program = new QOpenGLShaderProgram;
-    program->addShader(vshader);
-    program->addShader(fshader);
-    program->bindAttributeLocation("vertex", PROGRAM_VERTEX_ATTRIBUTE);
-    program->bindAttributeLocation("texCoord", PROGRAM_TEXCOORD_ATTRIBUTE);
-    program->link();
-
-    program->bind();
-
     QMatrix4x4 m;
     m.ortho(-1.0f, +1.0f, +1.0f, -1.0f, 0.0f, 10.0f);
     m.translate(0.0f, 0.0f, -1.0f);
-
-    program->setUniformValue("matrix", m);
 
     double centerx = meta_infos.mla_centerOffset_x / meta_infos.mla_pixelPitch;
     double centery = meta_infos.mla_centerOffset_y / meta_infos.mla_pixelPitch;
     double radiusx = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_x;
     double radiusy = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_y;
     double lenslet_rotation = meta_infos.mla_rotation;
-
-
     float dy_rot_PerLenslet_hori = -tan(lenslet_rotation) * radiusx;
     float dx_rot_PerLenslet_vert = tan(lenslet_rotation) * radiusy;
     QPointF centerLens_pos = QPointF(texture.width()/2.0f + centerx, texture.height()/2.0f - centery);
@@ -109,23 +80,62 @@ void QOpengl_LFVideoPlayer::initializeGL()
                     dy_rot_PerLenslet_hori, dy_PerLenslet_row};
     QMatrix3x3 ccm(meta_infos.cc);
     QMatrix2x2 lenslet_m(lens_letmatrix);
+
+
+    // FRAMEBUFFER
+    /*framebuffer = 0;
+    glGenFramebuffers(1, &framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    // The texture we're going to render to
+    renderedTexture_id;
+    glGenTextures(1, &renderedTexture_id);
+    glBindTexture(GL_TEXTURE_2D, renderedTexture_id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture.width(), texture.height(), 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    _func330->glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture_id, 0);
+    GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+    _func330->glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers*/
+
+    QOpenGLShader* vshader = new QOpenGLShader(QOpenGLShader::Vertex, this);
+    vshader->compileSourceFile("lightfield_raw.vert");
+
+    QOpenGLShader *fshader = new QOpenGLShader(QOpenGLShader::Fragment, this);
+    fshader->compileSourceFile("lightfield_raw.fsh");
+
+    QOpenGLShader* vfocusshader = new QOpenGLShader(QOpenGLShader::Vertex, this);
+    vfocusshader->compileSourceFile("uvlightfield_focus.vert");
+
+    QOpenGLShader* ffocusshader = new QOpenGLShader(QOpenGLShader::Fragment, this);
+    ffocusshader->compileSourceFile("uvlightfield_focus.fsh");
+
+    // PROGRAMS
+    program = new QOpenGLShaderProgram;
+    program->addShader(vshader);
+    program->addShader(fshader);
+    program->bindAttributeLocation("vertex", PROGRAM_VERTEX_ATTRIBUTE);
+    program->bindAttributeLocation("texCoord", PROGRAM_TEXCOORD_ATTRIBUTE);
+    program->bind();  // gets automatically linked
+
+    qDebug() << "LightfieldID" << program->uniformLocation("lightfield");
+    program->setUniformValue("matrix", m);
     program->setUniformValue("lenslet_m", lenslet_m);
     program->setUniformValue("ccm", ccm.transposed());
     program->setUniformValue("modulationExposureBias", float(meta_infos.modulationExposureBias));
-    program->setUniformValue("dy_rot_PerLenslet_hori", dy_rot_PerLenslet_hori);
-    program->setUniformValue("dx_rot_PerLenslet_vert", dx_rot_PerLenslet_vert);
-    program->setUniformValue("dy_PerLenslet_row", dy_PerLenslet_row);
-    program->setUniformValue("dx_row_odd", dx_row_odd);
     program->setUniformValue("lenslet_dim", QPoint(radiusx, radiusy));
-    program->setUniformValue("lenslet_count", QPoint(meta_infos.width/radiusx, meta_infos.height/dy_PerLenslet_row));
+    program->setUniformValue("size_st", QPoint(meta_infos.width/radiusx, meta_infos.height/dy_PerLenslet_row));
     program->setUniformValue("centerLens_pos", centerLens_pos);
     program->setUniformValue("tex_dim", QPoint(meta_infos.width, meta_infos.height));
     program->setUniformValue("white_balance", QVector3D(meta_infos.r_bal,1.0f,meta_infos.b_bal));
-    qDebug() << "Metainfos: "
-             << QString::number(meta_infos.width) << ", "
-             << QString::number(meta_infos.height) << ", "
-             << QString::number(radiusx) << ", "
-            << QString::number(radiusx) << ", ";
+
+    program->enableAttributeArray(PROGRAM_VERTEX_ATTRIBUTE);
+    program->enableAttributeArray(PROGRAM_TEXCOORD_ATTRIBUTE);
+    program->setAttributeBuffer(PROGRAM_VERTEX_ATTRIBUTE, GL_FLOAT, 0, 3, 5 * sizeof(GLfloat));
+    program->setAttributeBuffer(PROGRAM_TEXCOORD_ATTRIBUTE, GL_FLOAT, 3 * sizeof(GLfloat), 2, 5 * sizeof(GLfloat));
 
 
     glGenTextures(1, &texture_id);
@@ -136,28 +146,36 @@ void QOpengl_LFVideoPlayer::initializeGL()
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
-    glEnable(GL_TEXTURE_2D);
+    if (texture_is_raw)
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, meta_infos.width,
+                    meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+    else
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, meta_infos.width,
+                    meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 
-    _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, texture.width(),
-         texture.height(), 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, texture.bits());
 
-    program->enableAttributeArray(PROGRAM_VERTEX_ATTRIBUTE);
-    program->enableAttributeArray(PROGRAM_TEXCOORD_ATTRIBUTE);
-    program->setAttributeBuffer(PROGRAM_VERTEX_ATTRIBUTE, GL_FLOAT, 0, 3, 5 * sizeof(GLfloat));
-    program->setAttributeBuffer(PROGRAM_TEXCOORD_ATTRIBUTE, GL_FLOAT, 3 * sizeof(GLfloat), 2, 5 * sizeof(GLfloat));
+    focusprogram = new QOpenGLShaderProgram;
+    focusprogram->addShader(vfocusshader);
+    focusprogram->addShader(ffocusshader);
+    focusprogram->bindAttributeLocation("vertex", PROGRAM_VERTEX_ATTRIBUTE);
+    focusprogram->bindAttributeLocation("texCoord", PROGRAM_TEXCOORD_ATTRIBUTE);
+    focusprogram->bind(); // gets automatically linked
+
+    focusprogram->setUniformValue("lenslet_dim", QPoint(radiusx, radiusy));
+    focusprogram->setUniformValue("size_st", QPoint(meta_infos.width/radiusx, meta_infos.height/dy_PerLenslet_row));
+    focusprogram->setUniformValue("tex_dim", QPoint(meta_infos.width, meta_infos.height));
+
+    focusprogram->enableAttributeArray(PROGRAM_VERTEX_ATTRIBUTE);
+    focusprogram->enableAttributeArray(PROGRAM_TEXCOORD_ATTRIBUTE);
+    focusprogram->setAttributeBuffer(PROGRAM_VERTEX_ATTRIBUTE, GL_FLOAT, 0, 3, 5 * sizeof(GLfloat));
+    focusprogram->setAttributeBuffer(PROGRAM_TEXCOORD_ATTRIBUTE, GL_FLOAT, 3 * sizeof(GLfloat), 2, 5 * sizeof(GLfloat));
 
 }
 
 
 
-void QOpengl_LFVideoPlayer::open_video()
+void QOpengl_LFVideoPlayer::open_video(QString filename)
 {
-    // Display dialog so the user can select a file
-    QString filename = QFileDialog::getOpenFileName(this,
-                                                    tr("Open Video"),
-                                                    QDir::currentPath(),
-                                                    tr("Files (*.*)"));
-
     if (filename.isEmpty()) // Do nothing if filename is empty
         return;
 
@@ -200,13 +218,7 @@ void QOpengl_LFVideoPlayer::open_video()
         video_height = height();
     }
 
-    // Resize the window to fit video dimensions
-    //resize(video_width, video_height);
     resize(625, 433);
-    //resize(this->width(), this->height());
-
-    //resizeGL(video_width, video_height);
-
     // Retrieve fps from the video. If not available, default will be 25
     int fps = 0;
     frames_total = _capture->get(CV_CAP_PROP_FRAME_COUNT);
@@ -216,28 +228,13 @@ void QOpengl_LFVideoPlayer::open_video()
     if (!fps)
         fps = 30;
     // overriding frames
-    fps = 10;
+    //fps = 10;
 
     // Set FPS playback
     int tick_ms = 1000/fps;
 
-    LFP_Reader reader;
-    std::string meta_filename = filename.split('.')[0].toStdString() + ".txt";
-    std::basic_ifstream<unsigned char> input(meta_filename, std::ifstream::binary);
-    if(input.is_open()){
-        qDebug() << "Metainfo fount at " << QString::fromStdString(meta_filename);
-        std::string text = reader.readText(input);
-        QString meta_info = QString::fromStdString(text);
-        reader.parseLFMetaInfo(meta_info);
-        this->meta_infos = reader.meta_infos;
-        qDebug() << "Metainfos loaded";
-    }
-    else
-        qDebug() << "ERROR : Metainfo NOT found at " << QString::fromStdString(meta_filename);
-
+    texture_is_raw = true;
     texture = QImage(video_width, video_height, QImage::Format_Indexed8);
-
-
     initializeGL();
 
     /*_capture->grab();
@@ -316,41 +313,46 @@ void QOpengl_LFVideoPlayer::paintGL()
     glClearColor(clearColor.redF(), clearColor.greenF(), clearColor.blueF(), clearColor.alphaF());
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    //texture = texture.mirrored();
-    if(texture.isNull() )
-        return;
-
-    _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, texture.width(),
-                texture.height(), 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, texture.bits());
-    //_func330->glTexImage2D(GL_TEXTURE_2D, 0, 1, frame.cols,
-    //                frame.rows, 0, GL_RED, GL_UNSIGNED_BYTE, frame.data);
-
-
     QMatrix4x4 m;
-    m.ortho(-orthosize, +orthosize, +orthosize, -orthosize, 0.0f, 10.0f);
-    m.translate(translation.x(), translation.y(), -1.0f);
-
+    m.ortho(-1, +1, +1, -1, 0.0f, 10.0f);
+    m.translate(0, 0, -1.0f);
+    program->bind();
+    //qDebug() << "program bind : " << program->bind();
     program->setUniformValue("view_mode", opengl_view_mode);
     program->setUniformValue("option_wb", opengl_option_wb);
     program->setUniformValue("option_ccm", opengl_option_ccm);
     program->setUniformValue("option_gamma", opengl_option_gamma);
     program->setUniformValue("option_superresolution", opengl_option_superresolution);
 
-
-    program->setUniformValue("matrix", m);
+    program->setUniformValue("matrix", m); // m_result, m
     program->setUniformValue("lens_pos_view", lens_pos_view);
-
     program->setUniformValue("focus", focus);
-    program->setUniformValue("focus_radius", 15);
-    //program->setUniformValue("frame", frame_current);
 
-    glActiveTexture(texture_id);
+
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture( GL_TEXTURE_2D, texture_id);
+    glUniform1i(program->uniformLocation("lightfield"), 0);
+    if (texture_is_raw){
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, texture.width(),
+                    texture.height(), 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, texture.bits());
+        program->setUniformValue("is_raw", true);
+    }
+    else{
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texture.width(),
+                    texture.height(), 0, GL_BGRA, GL_UNSIGNED_BYTE, texture.bits());
+        program->setUniformValue("is_raw", false);
+    }
+    if (texture.isNull())
+        return;
+
+    //qDebug() << "Error : " << glGetError();
+
+    glClearColor(0.7,0.8,0.2,1);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     for (int i = 0; i < 1; ++i) {
-        glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+      glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
     }
-
     //program->release();
 
     //myTimer.start();

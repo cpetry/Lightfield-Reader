@@ -2,8 +2,8 @@
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
-#include <QOpenGLFunctions_4_2_Core>
-//#include <QOpenGLFunctions_3_1>
+//#include <QOpenGLFunctions_4_2_Core>
+#include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLBuffer>
 #include <QOpenGLTexture>
 #include <QOpenGLShaderProgram>
@@ -30,6 +30,7 @@ public:
     /*
      * Initializes the viewer with a lightfield-image
      */
+    QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video, LFP_Reader::lf_meta meta_infos);
     QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos);
     ~QOpenGL_LFViewer();
 
@@ -53,6 +54,7 @@ public slots:
     void toggleCCM(bool v){ opengl_option_ccm = v;  update();}
     void toggleGamma(bool v){ opengl_option_gamma = v;  update();}
     void toggleSuperResolution(bool v){ opengl_option_superresolution = v; update();}
+    void renderDemosaic(bool v) {opengl_option_is_demosaicked = v; update();}
     void saveImage();
     void saveRaw();
 
@@ -70,22 +72,28 @@ protected:
     void wheelEvent(QWheelEvent * event) Q_DECL_OVERRIDE;
     QOpenGLContext *m_context;
 
+private slots:
+    void _tick();
+
 private:
+    void open_video(QString filename);
+    void close_video();
     void makeObject();
+    void restructureImageToUVST();
     cv::VideoCapture* _capture = NULL;
     QColor clearColor;
     QImage texture;
-    bool texture_is_raw = false;
     LFP_Reader::lf_meta meta_infos;
 
     QOpenGLShaderProgram *program, *focusprogram;
     QOpenGLBuffer vbo;
-    QOpenGLFunctions_4_2_Core *_func330;
+    QOpenGLFunctions_3_3_Core *_func330;
     //QOpenGLFunctions_3_1 *_func330;
     QOpenGLContext *_context;
     QPoint lastPos;
     Qt::MouseButton currentButton = Qt::MidButton;
     QTimer myTimer;
+    cv::Mat channel;
 
     GLuint texture_id, framebuffer, renderedTexture_id, renderedTex_id, lightfield_id;
     float orthosize = 1.0f;
@@ -101,11 +109,15 @@ private:
     int frame_current = 0;
     int frame_max = 1;
     double overlap = 14.29;
-    int opengl_view_mode = 0;
+    int opengl_view_mode = 3;
     bool opengl_option_wb = true;
     bool opengl_option_ccm = true;
     bool opengl_option_gamma = true;
     bool opengl_option_superresolution = true;
+    bool opengl_option_is_demosaicked = false;
+    bool texture_is_raw = false;
+    bool is_video = false;
+
 signals:
     void closed();
 };
