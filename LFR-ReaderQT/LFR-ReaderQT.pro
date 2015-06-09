@@ -40,21 +40,21 @@ win32 {
     #MSVCRT_LINK_FLAG_RELEASE = "/MD"
 
     message("* Using settings for Windows.")
-    INCLUDEPATH += E:/Libraries/open_cv/build/include \
-                   E:/Libraries/open_cv/build/include/opencv \
-                   E:/Libraries/open_cv/build/include/opencv2
+    INCLUDEPATH += $$(OPENCV_DIR)/include \
+                   $$(OPENCV_DIR)/include/opencv \
+                   $$(OPENCV_DIR)/include/opencv2
 
     CONFIG(debug, debug | release) {
-        LIBS += -LE:/Libraries/open_cv/build/x64/vc12/lib \
-            -LE:/Libraries/open_cv/build/x64/vc12/bin \
+        LIBS += -L$$(OPENCV_DIR)/x64/vc12/lib \
+            -L$$(OPENCV_DIR)/x64/vc12/bin \
             -lopencv_core2411d \
             -lopencv_highgui2411d \
             -lopencv_imgproc2411d
     }
 
     CONFIG(release, debug | release) {
-        LIBS += -LE:/Libraries/open_cv/build/x64/vc12/lib \
-            -LE:/Libraries/open_cv/build/x64/vc12/bin \
+        LIBS += -L$$(OPENCV_DIR)/x64/vc12/lib \
+            -L$$(OPENCV_DIR)/x64/vc12/bin \
             -lopencv_core2411 \
             -lopencv_highgui2411 \
             -lopencv_imgproc2411
