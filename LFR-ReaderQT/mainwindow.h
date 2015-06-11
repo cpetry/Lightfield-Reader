@@ -32,6 +32,7 @@ public slots:
     void chooseExtractRawLFFolder();
     void chooseCreateVideoFromPNGs();
     void chooseVideoPlayer();
+    void chooseVideoFromImageSequence();
 
 private:
     Ui::MainWindow *ui;

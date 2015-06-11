@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QMediaPlayer>
 #include <QVideoWidget>
+#include <QMessageBox>
 
 QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0) {
@@ -31,6 +32,17 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video,
     }
 }
 
+QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_video, LFP_Reader::lf_meta meta_infos)
+    : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0) {
+
+    this->meta_infos = meta_infos;
+
+    opengl_option_is_demosaicked = false;
+    this->is_video = false;
+
+    open_image_sequence(files);
+}
+
 
 QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0){
@@ -41,9 +53,25 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::l
     else
         texture_is_raw = false;
 
+    if (this->meta_infos.width != image.width()
+        || this->meta_infos.height != image.height()){
+        int ret = QMessageBox::warning(this, tr("Warning!"),
+                             QString(QString("Meta Info seems not to be correct.\n") +
+                               "Width: Meta-Image " + QString::number(this->meta_infos.width) + " " + QString::number(image.width()) +"\n"+
+                               "Height: Meta-Image " + QString::number(this->meta_infos.height) + " " + QString::number(image.height()) +"\n"+
+                               "Do you want to continue?"),
+                             QMessageBox::Yes | QMessageBox::No,
+                             QMessageBox::No);
+        if (ret == QMessageBox::No)
+            return;
+    }
+
+
     texture = image.mirrored();
     is_video = false;
     opengl_option_is_demosaicked = false;
+    this->meta_infos.width = image.width();
+    this->meta_infos.height = image.height();
 }
 
 
@@ -72,6 +100,23 @@ void QOpenGL_LFViewer::setClearColor(const QColor &color)
 {
     clearColor = color;
     update();
+}
+
+void QOpenGL_LFViewer::open_image_sequence(QStringList filenames){
+    texture = QImage(filenames.at(0));
+
+    if (texture.format() == QImage::Format_Indexed8){
+        texture_is_raw = true;
+    }
+    else
+        texture_is_raw = false;
+
+    texture = texture.mirrored();
+    opengl_option_is_demosaicked = true;
+
+    int fps = 5;
+    tick_ms = 1000/fps;
+    start_video();
 }
 
 void QOpenGL_LFViewer::open_video(QString filename)
@@ -105,17 +150,50 @@ void QOpenGL_LFViewer::open_video(QString filename)
     qDebug() << "cvWindow::_open default size is " << video_width << "x" << video_height;
 
     int bit_depth = _capture->get(CV_CAP_PROP_FORMAT);
+    qDebug() << "Bit Depth: " << QString::number(bit_depth);
     if(bit_depth == CV_8U)
         qDebug() << "cvWindow::_open format is CV_8U";
-    if(bit_depth == CV_8UC1)
+    else if(bit_depth == CV_8UC1)
         qDebug() << "cvWindow::_open format is CV_8UC1";
-    if(bit_depth == CV_8S)
+    else if(bit_depth == CV_8UC2)
+        qDebug() << "cvWindow::_open format is CV_8UC2";
+    else if(bit_depth == CV_8UC3)
+        qDebug() << "cvWindow::_open format is CV_8UC3";
+    else if(bit_depth == CV_8UC4)
+        qDebug() << "cvWindow::_open format is CV_8UC4";
+    else if(bit_depth == CV_8S)
         qDebug() << "cvWindow::_open format is CV_8S";
+    else if(bit_depth == CV_32F)
+        qDebug() << "cvWindow::_open format is CV_32F";
+    else if(bit_depth == CV_32S)
+        qDebug() << "cvWindow::_open format is CV_32S";
+    else if(bit_depth == CV_32SC1)
+        qDebug() << "cvWindow::_open format is CV_32SC1";
+    else if(bit_depth == CV_32SC3)
+        qDebug() << "cvWindow::_open format is CV_32SC3";
+    else if(bit_depth == CV_64F)
+        qDebug() << "cvWindow::_open format is CV_64F";
 
-    if (!video_width || !video_height)
-    {
+    if (this->meta_infos.width != video_width
+        || this->meta_infos.height != video_height){
+        int ret = QMessageBox::warning(this, tr("Warning!"),
+                             QString(QString("Meta Info seems not to be correct.\n") +
+                               "Width: Meta-Image " + QString::number(this->meta_infos.width) + " " + QString::number(video_width) +"\n"+
+                               "Height: Meta-Image " + QString::number(this->meta_infos.height) + " " + QString::number(video_height) +"\n"+
+                               "Do you want to continue?"),
+                             QMessageBox::Yes | QMessageBox::No,
+                             QMessageBox::No);
+        if (ret == QMessageBox::No)
+            return;
+    }
+
+    if (!video_width || !video_height){
         video_width = width();
         video_height = height();
+    }
+    else{
+        meta_infos.width = video_width;
+        meta_infos.height = video_height;
     }
 
     resize(625, 433);
@@ -128,27 +206,54 @@ void QOpenGL_LFViewer::open_video(QString filename)
     if (!fps)
         fps = 30;
     // overriding frames
-    fps = 25;
-    _capture->set(CV_CAP_PROP_FPS, fps);
+    fps = 5;
+    //_capture->set(CV_CAP_PROP_FPS, fps);
 
     // Set FPS playback
-    int tick_ms = 1000/fps;
+    tick_ms = 1000/fps;
 
-    texture_is_raw = true;
-    texture = QImage(video_width, video_height, QImage::Format_Indexed8);
-    //initializeGL();
+    //texture_is_raw = false;
+    //opengl_option_is_demosaicked = true;
+    int image_type = QMessageBox::warning(this, tr("Image Format"),
+                         tr("What kind of video?\n"
+                            "Raw, Demosaiced or UV-ST?"),
+                         "Raw", "Demosaiced", "UV-ST",0);
+    texture_is_raw = (image_type == 0);
+    opengl_option_is_demosaicked = (image_type == 2);
 
-    /*_capture->grab();
-    _capture->retrieve(frame, CV_CAP_OPENNI_GRAY_IMAGE);
-    //frame= frame.reshape(1);
-    //_capture->get(CV_CAP_PROP_FORMAT);
-    qDebug() << "width : " << QString::number(frame.cols) <<
-                ", height: " << QString::number(frame.rows) <<
-                ", channels: " << QString::number(frame.channels());*/
 
-    // Start timer to read frames from the capture interface
-    channel = cv::Mat::Mat(cv::Size(video_width, video_height), 0); // frame will have depth 0 ?!
+    //_capture->set(CV_CAP_PROP_POS_FRAMES, 1);
 
+    qDebug() << "Reading first frame";
+    cv::Mat frame = cv::Mat::Mat(cv::Size(meta_infos.width, meta_infos.height), 1);
+
+    if (texture_is_raw){
+        channel = cv::Mat::Mat(cv::Size(meta_infos.width, meta_infos.height), 0);
+        _capture->read(frame);
+        //_capture->read(channel);
+        int from_to[] = { 0,0 };
+        //qDebug() << "Frame has " << QString::number(frame.channels()) << " channels";
+        channel = cv::Mat::Mat(cv::Size(frame.cols, frame.rows), 0); // frame will have depth 0 ?!
+        cv::mixChannels( &frame, 1, &channel, 1, from_to,1 );
+        cv::flip(channel, channel, 0);
+    }
+    else{
+        filename.chop(4);
+        texture = QImage(filename);
+
+    }
+    //
+    qDebug() << "Channel has x: " << QString::number(channel.cols) << ", y:" << QString::number(channel.rows) << " channels";
+    qDebug() << "Channel has " << QString::number(channel.channels()) << " channels";
+
+    // reset to position 0
+    //_capture->set(CV_CAP_PROP_POS_FRAMES, 0);
+
+    //update();
+    start_video();
+}
+
+void QOpenGL_LFViewer::start_video(){
     myTimer.start(tick_ms);
     QObject::connect(&myTimer, SIGNAL(timeout()), this, SLOT(_tick()));
 }
@@ -158,50 +263,51 @@ void QOpenGL_LFViewer::_tick()
     /* This method is called every couple of milliseconds.
      * It reads from the OpenCV's capture interface and saves a frame as QImage
      */
+    //qDebug() << "tick!";
     /*qDebug() << "width : " << QString::number(frame.cols) <<
                 ", height: " << QString::number(frame.rows) <<
                 ", channels: " << QString::number(frame.channels());*/
     //frame= frame.reshape(1);
-    frame_count++;
-    cv::Mat frame;
-    if (frame_count > frames_total)
-    {
-        _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
-        *_capture >> frame;
-        //_capture->grab()
-        //_capture->retrieve(frame);
-        frame_count = 1;
-        // should now work again :)
-        if (_capture->get(CV_CAP_PROP_POS_FRAMES) == 0 && frame.empty()){
-            qDebug() << "cvWindow::_tick !!! cant rewind";
-            myTimer.stop();
-            return;
+
+    if (texture_is_raw && is_video){
+        if (frame_count >= frames_total+1)
+        {
+            frame_count = 0;
+            _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
+            if (_capture->get(CV_CAP_PROP_POS_FRAMES) != 0){
+                qDebug() << "cvWindow::_tick !!! cant rewind";
+                myTimer.stop();
+                return;
+            }
         }
-    }
-    else
-    {
+
+        cv::Mat frame;
+        int from_to[] = { 0,0 };
         *_capture >> frame;
-        //_capture->grab();
-        //_capture->retrieve(frame);
+        cv::mixChannels( &frame, 1, &channel, 1, from_to, 1 );
+        cv::flip(channel, channel, 0);
+        glBindTexture( GL_TEXTURE_2D, texture_id);
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, meta_infos.width,
+                meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, channel.data);
+
     }
-    //std::vector<cv::Mat> channels;
-    //cv::split(frame, channels);
-    //texture = QImage(channels[0].data, channels[0].cols, channels[0].rows, channels[0].step, QImage::Format_Indexed8);
-    //std::memcpy(texture.scanLine(0), (unsigned char*)channels[0].data, frame.cols * frame.rows * 1); //frame.channels()
+    else{
+        if (frame_count >= frames_total+1)
+            frame_count = 0;
 
-    int from_to[] = { 0,0 };
-    cv::mixChannels( &frame, 1, &channel, 1, from_to, 1 );
-    //std::memcpy(texture.scanLine(0), (unsigned char*)channel.data, channel.cols * channel.rows); //frame.channels()
-    cv::flip(channel, channel, 0);
-
-    // Copy cv::Mat to QImage
-    //texture = texture.mirrored();
-    // The same as above, but much worse.
-    //QImage img = QImage((uchar*) frame.data, frame.cols, frame.rows, frame.step, QImage::Format_RGB888);
-    //*_image = img.copy();
+        //_capture->grab();
+        //_capture->retrieve(channel,3);
+        //cv::flip(channel, channel, 0);
+        //if (frame_count == 0){
+            glBindTexture(GL_TEXTURE_2D, texture_id);
+            _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, meta_infos.width,
+                   meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture.bits());
+        //}
+    }
 
     // Trigger paint event to redraw the window
     update();
+    frame_count++;
 }
 
 void QOpenGL_LFViewer::close_video()
@@ -210,8 +316,7 @@ void QOpenGL_LFViewer::close_video()
     emit closed();
 }
 
-void QOpenGL_LFViewer::initializeGL()
-{
+void QOpenGL_LFViewer::initializeGL(){
     initializeOpenGLFunctions();
     _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
     //_func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_1>();
@@ -357,11 +462,10 @@ void QOpenGL_LFViewer::initializeGL()
 
 }
 
-void QOpenGL_LFViewer::paintGL()
-{
+void QOpenGL_LFViewer::paintGL(){
     //fbo->bind();
     QMatrix4x4 m_result;
-    if (opengl_view_mode != 3){
+    if (opengl_view_mode != 4){
         m_result.ortho(-orthosize, +orthosize, +orthosize, -orthosize, 0.0f, 10.0f);
         m_result.translate(translation.x(), translation.y(), -1.0f);
     }
@@ -385,6 +489,7 @@ void QOpenGL_LFViewer::paintGL()
     focusprogram->setUniformValue("uv_coord", QPointF(0,0));
     focusprogram->setUniformValue("focus", focus);
     focusprogram->setUniformValue("view_mode", opengl_view_mode);
+    focusprogram->setUniformValue("focus_spread", focus_spread);
 
     glViewport(0,0,width(),height()); // Render on the screen
     glClearColor(0.2, 0.2, 0.2, 1);
@@ -392,8 +497,10 @@ void QOpenGL_LFViewer::paintGL()
 
     if (texture_is_raw || !opengl_option_is_demosaicked)
         glBindTexture(GL_TEXTURE_2D, renderedTexture_id);
-    else
+    else{
         glBindTexture(GL_TEXTURE_2D, texture_id);
+    }
+
     glUniform1i(focusprogram->uniformLocation("renderedTexture"), 0);
     glEnable(GL_TEXTURE_2D);
     for (int i = 0; i < 1; ++i) {
@@ -416,6 +523,7 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
     program->setUniformValue("option_ccm", opengl_option_ccm);
     program->setUniformValue("option_gamma", opengl_option_gamma);
     program->setUniformValue("option_superresolution", opengl_option_superresolution);
+    program->setUniformValue("option_display_mode", opengl_option_display_mode);
 
     program->setUniformValue("matrix", m); // m_result, m
     program->setUniformValue("lens_pos_view", lens_pos_view);
@@ -425,7 +533,6 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
     //qDebug() << "Error : " << glGetError();
 
 
-
     // Render to our framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -433,24 +540,17 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
 
     // Render on the whole framebuffer, complete from the lower left corner to the upper right
     glViewport(0,0, meta_infos.width, meta_infos.height);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture( GL_TEXTURE_2D, texture_id);
-    glUniform1i(program->uniformLocation("lightfield"), 0);
-    if (texture_is_raw){
-        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, meta_infos.width,
-                    meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, ((is_video) ? channel.data : texture.bits()));
-        program->setUniformValue("is_raw", true);
-    }
-    else{
-        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, meta_infos.width,
-                    meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, ((is_video) ? channel.data : texture.bits()));
-        program->setUniformValue("is_raw", false);
-    }
-    if (texture.isNull())
-        return;
 
     glClearColor(0.7,0.8,0.2,1);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture( GL_TEXTURE_2D, texture_id);
+    glUniform1i(program->uniformLocation("lightfield"), 0);
+    if (texture_is_raw)
+        program->setUniformValue("is_raw", true);
+    else
+        program->setUniformValue("is_raw", false);
 
     for (int i = 0; i < 1; ++i) {
       glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
@@ -485,7 +585,8 @@ void QOpenGL_LFViewer::mouseMoveEvent(QMouseEvent *event)
     }
     else if(currentButton == Qt::RightButton){
         //lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.01f, lens_pos_view.y() - dy * 0.01f);
-        focus -= dy * 0.001f;
+        focus -= dy * 0.01f;
+        //focus_spread -= dy * 0.01f;
     }
     lastPos = event->pos();
     if (_capture == NULL || !_capture->isOpened())

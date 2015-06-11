@@ -35,6 +35,7 @@
      <string>Video</string>
     </property>
     <addaction name="actionPlayer"/>
+    <addaction name="actionOpen_Image_Sequence"/>
     <addaction name="actionCreateFromPNGs"/>
    </widget>
    <widget class="QMenu" name="menuImage">
@@ -79,6 +80,11 @@
   <action name="actionPlayer">
    <property name="text">
     <string>Open Video</string>
+   </property>
+  </action>
+  <action name="actionOpen_Image_Sequence">
+   <property name="text">
+    <string>Open Image Sequence</string>
    </property>
   </action>
  </widget>

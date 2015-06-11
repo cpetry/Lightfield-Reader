@@ -13,6 +13,7 @@
 #include <QLabel>
 #include <QStringList>
 #include <QDate>
+#include <QMessageBox>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -31,6 +32,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionExtractLFFolder, &QAction::triggered, this, &MainWindow::chooseExtractRawLFFolder);
     connect(ui->actionCreateFromPNGs, &QAction::triggered, this, &MainWindow::chooseCreateVideoFromPNGs);
     connect(ui->actionPlayer, &QAction::triggered, this, &MainWindow::chooseVideoPlayer);
+    connect(ui->actionOpen_Image_Sequence, &QAction::triggered, this, &MainWindow::chooseVideoFromImageSequence);
 
     //chooseLFImage();
 }
@@ -73,13 +75,122 @@ void MainWindow::chooseVideoPlayer(){
         //addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
         reader.parseLFMetaInfo(meta_info);
     }
+    else{
+        int ret = QMessageBox::warning(this, tr("Loading LightField Video"),
+                             tr("Meta Info File not found.\n"
+                                "Do you want to continue?"),
+                             QMessageBox::Yes | QMessageBox::No,
+                             QMessageBox::No);
+        if (ret == QMessageBox::No)
+            return;
+    }
+    tabWidget->clear();
 
     QHBoxLayout* view_layout = new QHBoxLayout();
     QWidget* view_widget = new QWidget();
     view_widget->setLayout(view_layout);
     QOpenGL_LFViewer *opengl_movieplayer = new QOpenGL_LFViewer(this, filename, true, reader.meta_infos);
     view_layout->addWidget(opengl_movieplayer);
-    opengl_movieplayer->update();
+    //opengl_movieplayer->update();
+    tabWidget->addTab(view_widget,"View");
+
+    // Color Tab
+    /////////////////
+    QGridLayout* buttons_layout = new QGridLayout();
+    QWidget* buttons_widget = new QWidget();
+    buttons_widget->setMaximumSize(300,1000);
+    buttons_widget->setLayout(buttons_layout);
+
+    QPushButton *gray = new QPushButton("Gray");
+    QPushButton *bayer = new QPushButton("Bayer");
+    QPushButton *demosaic = new QPushButton("Demosaic");
+    connect( gray, SIGNAL(clicked()), opengl_movieplayer, SLOT(buttonGrayClicked()) );
+    connect( bayer, SIGNAL(clicked()), opengl_movieplayer, SLOT(buttonBayerClicked()) );
+    connect( demosaic, SIGNAL(clicked()), opengl_movieplayer, SLOT(buttonDemosaicClicked()) );
+    buttons_layout->addWidget(gray,0,1);
+    buttons_layout->addWidget(bayer,0,2);
+    buttons_layout->addWidget(demosaic,1,1);
+
+    // Color correction Tab
+    QWidget* colorcorrect_options = new QWidget();
+    QVBoxLayout* colorcorrect_options_layout = new QVBoxLayout();
+    colorcorrect_options->setLayout(colorcorrect_options_layout);
+    QCheckBox *checkWhiteBalance = new QCheckBox("WhiteBalance");
+    QCheckBox *checkCCM = new QCheckBox("CCM");
+    QCheckBox *checkGamma = new QCheckBox("Gamma");
+    connect( checkWhiteBalance, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleWhiteBalance(bool)) );
+    connect( checkCCM, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleCCM(bool)) );
+    connect( checkGamma, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleGamma(bool)) );
+    checkWhiteBalance->setChecked(true);
+    checkCCM->setChecked(true);
+    checkGamma->setChecked(true);
+    colorcorrect_options_layout->addWidget(checkWhiteBalance);
+    colorcorrect_options_layout->addWidget(checkCCM);
+    colorcorrect_options_layout->addWidget(checkGamma);
+    buttons_layout->addWidget(colorcorrect_options,1,2);
+
+    QWidget* display_options = new QWidget();
+    QVBoxLayout* display_options_layout = new QVBoxLayout();
+    display_options->setLayout(display_options_layout);
+    QPushButton *display = new QPushButton("Display");
+    QSlider* focus_slider = new QSlider(Qt::Vertical, this);
+    connect( focus_slider, SIGNAL(valueChanged(int)), opengl_movieplayer, SLOT(focus_changed(int)));
+    connect( display, SIGNAL(clicked()), opengl_movieplayer, SLOT(buttonDisplayClicked()) );
+    focus_slider->setMaximum(250);
+    focus_slider->setMinimum(-250);
+    //QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
+    //connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleSuperResolution(bool)) );
+    //checkSuperResolution->setChecked(true);
+    //display_options_layout->addWidget(checkSuperResolution);
+    QCheckBox *demosaic_render = new QCheckBox("Demosaic");
+    connect( demosaic_render, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(renderDemosaic(bool)) );
+    demosaic_render->setChecked(false);
+    display_options_layout->addWidget(demosaic_render);
+    display_options_layout->addWidget(display);
+    display_options_layout->addWidget(focus_slider);
+    buttons_layout->addWidget(display_options,2,1);
+
+    view_layout->addWidget(buttons_widget);
+}
+
+void MainWindow::chooseVideoFromImageSequence(){
+    // Display dialog so the user can select a file
+    QStringList filenames = QFileDialog::getOpenFileNames(this,
+                                                          QString("Choose multiple Lightfield Images"), // window name
+                                                          "../",                                       // directory
+                                                          QString("LightField Images(*.PNG *.JPG)"));   // filetype
+
+    if (filenames.isEmpty()) // Do nothing if filename is empty
+        return;
+
+    // first try to read meta info
+    QString metafile = filenames.at(0).split('.')[0];
+    std::string txt_file = metafile.toStdString() + ".TXT";
+
+    if (QFile(QString::fromStdString(txt_file)).exists()){
+        std::basic_ifstream<unsigned char> input(txt_file, std::ifstream::binary);
+        std::string text = reader.readText(input);
+        QString meta_info = QString::fromStdString(text);
+        //addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
+        reader.parseLFMetaInfo(meta_info);
+    }
+    else{
+        int ret = QMessageBox::warning(this, tr("Loading LightField Video"),
+                             tr("Meta Info File not found.\n"
+                                "Do you want to continue?"),
+                             QMessageBox::Yes | QMessageBox::No,
+                             QMessageBox::No);
+        if (ret == QMessageBox::No)
+            return;
+    }
+    tabWidget->clear();
+
+    QHBoxLayout* view_layout = new QHBoxLayout();
+    QWidget* view_widget = new QWidget();
+    view_widget->setLayout(view_layout);
+    QOpenGL_LFViewer *opengl_movieplayer = new QOpenGL_LFViewer(this, filenames, true, reader.meta_infos);
+    view_layout->addWidget(opengl_movieplayer);
+    //opengl_movieplayer->update();
     tabWidget->addTab(view_widget,"View");
 
     // Color Tab
@@ -149,20 +260,38 @@ void MainWindow::chooseCreateVideoFromPNGs(){
 
 
     if(!files.empty()){
-        cv::VideoWriter outputVideo;
+        int image_type = QMessageBox::warning(this, tr("Image Format"),
+                             tr("What kind of images?\n"
+                                "Raw, Demosaiced or UV-ST?"),
+                             "Raw", "Demosaiced", "UV-ST",0);
 
-        // Open the output
-        QImage info(files[0]);
-        cv::Size S = cv::Size(info.width(), info.height());
-        std::string name = files[0].split("_0")[0].toStdString() + ".avi";
-        std::string codec = "YV12"; // FFV1, MPEG
+        std::string codec;
+        if (image_type == 0) // raw
+            codec = "Y800"; // Y800 works!
+        else if (image_type == 1) // demosaicd // YV12, FFV1, MPEG, GREY
+            codec = "HFYU";
+        else if (image_type == 2) // UV-ST // MP42, I263, DIV3
+            codec = "Y422";
         char c[4];
         strcpy(c, codec.c_str());
-        outputVideo.open(name, CV_FOURCC(c[0],c[1],c[2],c[3]), 5, S, false);
+
+        // use first image as a reference image for the video
+        QImage info(files.at(0));
+        cv::Size S = cv::Size(static_cast<int>(info.width()), static_cast<int>(info.height()));
+        std::string name = files[0].split("_0")[0].toStdString() + ".avi";
+
+        // Open the output
+        cv::VideoWriter outputVideo;
+        int fps = 5;
+        if (image_type == 0)
+            outputVideo.open(name, CV_FOURCC(c[0],c[1],c[2],c[3]), fps, S, false);
+        else
+            outputVideo.open(name, CV_FOURCC(c[0],c[1],c[2],c[3]), fps, S, true);
 
         if (!outputVideo.isOpened())
         {
-            qDebug() << "Could not open the output video for write: " << QString::fromStdString(name) << endl;
+            qDebug() << "Could not open the output video for writing " << QString::fromStdString(name) << endl;
+            //qDebug() << "Perhaps wrong codec?!" << endl;
             return;
         }
 
@@ -170,24 +299,18 @@ void MainWindow::chooseCreateVideoFromPNGs(){
              << endl;
         qDebug() << "Input codec type: " << QString::fromStdString(codec) << endl;
 
-        cv::Mat src, res;
-        std::vector<cv::Mat> spl;
-
+        cv::Mat src;
         for(int i=0;i<files.length();i++) //Show the image captured in the window and repeat
         {
-            spl.clear();
-            src = cv::imread((files[i]).toStdString(), CV_LOAD_IMAGE_ANYDEPTH);              // read
+            if (image_type == 0)
+                src = cv::imread((files[i]).toStdString(), CV_LOAD_IMAGE_ANYDEPTH);
+            else
+                src = cv::imread((files[i]).toStdString(), CV_LOAD_IMAGE_COLOR);// read
             if (src.empty()){
                 qDebug() << "src is empty \n file:" << files[i];
                 break;         // check if at end
             }
-
-            /*for( int i =0; i < 3; ++i)
-                  spl.push_back(src);
-            merge(spl, res);*/
-
-            //outputVideo.write(res); //save or
-            outputVideo << src;
+            outputVideo.write(src);
         }
         qDebug() << "Finished writing" << endl;
     }
@@ -213,13 +336,21 @@ void MainWindow::chooseLFImage(){
             addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
             reader.parseLFMetaInfo(meta_info);
         }
+        else{
+            int ret = QMessageBox::warning(this, tr("Loading LightField Image"),
+                                 tr("Meta Info File not found.\n"
+                                    "Do you want to continue?"),
+                                 QMessageBox::Yes | QMessageBox::No,
+                                 QMessageBox::No);
+            if (ret == QMessageBox::No)
+                return;
+        }
 
         QHBoxLayout* view_layout = new QHBoxLayout();
         QWidget* view_widget = new QWidget();
         view_widget->setLayout(view_layout);
         QOpenGL_LFViewer *opengl_viewer = new QOpenGL_LFViewer(this, QImage(file), reader.meta_infos);
         view_layout->addWidget(opengl_viewer);
-        opengl_viewer->update();
         tabWidget->addTab(view_widget,"View");
 
         // Color Tab
@@ -262,6 +393,8 @@ void MainWindow::chooseLFImage(){
         QWidget* display_options = new QWidget();
         QVBoxLayout* display_options_layout = new QVBoxLayout();
         display_options->setLayout(display_options_layout);
+        QPushButton *uvmode = new QPushButton("UV-ST");
+        connect( uvmode, SIGNAL(clicked()), opengl_viewer, SLOT(buttonUVModeClicked()) );
         QPushButton *display = new QPushButton("Display");
         connect( display, SIGNAL(clicked()), opengl_viewer, SLOT(buttonDisplayClicked()) );
         //QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
@@ -273,6 +406,7 @@ void MainWindow::chooseLFImage(){
         demosaic_render->setChecked(false);
         display_options_layout->addWidget(demosaic_render);
         display_options_layout->addWidget(display);
+        display_options_layout->addWidget(uvmode);
         buttons_layout->addWidget(display_options,2,1);
 
         QPushButton *saveImage = new QPushButton("SaveImage");
@@ -283,6 +417,7 @@ void MainWindow::chooseLFImage(){
         buttons_layout->addWidget(saveImage,3,1);
         buttons_layout->addWidget(saveRaw,3,2);
         view_layout->addWidget(buttons_widget);
+        opengl_viewer->update();
 
     }
 }

@@ -10,7 +10,6 @@ uniform mediump vec2 lenslet_dim;
 uniform mediump vec2 size_st;
 uniform mediump vec3 white_balance;
 uniform mediump vec2 centerLens_pos;
-uniform mediump vec2 lens_pos_view;
 uniform mediump mat2 lenslet_m;
 float focus_radius = 15;
 uniform mediump float focus = 0;
@@ -20,7 +19,7 @@ uniform int view_mode = 3; // 0 - raw, 1 - bayer, 2 - demosaiced
 uniform bool option_wb = true;
 uniform bool option_ccm = true;
 uniform bool option_gamma = true;
-uniform int option_display_mode = 0; // 0 - uv, 1 - focus
+uniform int option_display_mode = 1; // 0 - uv, 1 - focus
 int demosaicking_mode = 1; // 0 - nearest neighbour, 1 - bilinear
 bool option_superresolution = true;
 uniform bool is_raw = true;
@@ -44,29 +43,24 @@ vec4 computeColorAt(vec2 texel_pos){
         color.g = texture2D(lightfield, texel_loc).r;
         if (view_mode >= 2){ // demosaicking
             if (demosaicking_mode == 0){ // nearest neighbour
-                color.r = texture2D(lightfield, vec2(1, 0) / tex_dim + texel_loc).r
-                        * ((option_wb) ? white_balance.r : 1.0f);
-                color.b = texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r
-                        * ((option_wb) ? white_balance.b : 1.0f);
+                color.r = texture2D(lightfield, vec2(1, 0) / tex_dim + texel_loc).r;
+                color.b = texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r;
             }
             else if(demosaicking_mode == 1){ // bilinear
                 color.r = (texture2D(lightfield, vec2(1 ,0) / tex_dim + texel_loc).r
-                         + texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r ) / 2
-                        * ((option_wb) ? white_balance.r : 1.0f);
+                         + texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r ) / 2;
                 color.b = (texture2D(lightfield, vec2(0,1)  / tex_dim + texel_loc).r
-                         + texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r ) / 2
-                        * ((option_wb) ? white_balance.b : 1.0f);
+                         + texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r ) / 2;
             }
         }
     }
     else if (bayer_pos == bvec2(1,0) ){ // red
-        color.r = texture2D(lightfield, texel_loc).r * ((option_wb) ? white_balance.r : 1.0f);
+        color.r = texture2D(lightfield, texel_loc).r;
         if (view_mode >= 2){ // demosaicking
             if (demosaicking_mode == 0){ // nearest neighbour
                 color.g = (texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r) / 2;
-                color.b = texture2D(lightfield, vec2(-1,-1) / tex_dim + texel_loc).r
-                        * ((option_wb) ? white_balance.b : 1.0f);
+                color.b = texture2D(lightfield, vec2(-1,-1) / tex_dim + texel_loc).r;
             }
             else if(demosaicking_mode == 1){ // bilinear
                 color.g = (texture2D(lightfield, vec2(0,1)  / tex_dim + texel_loc).r
@@ -76,19 +70,17 @@ vec4 computeColorAt(vec2 texel_pos){
                 color.b = (texture2D(lightfield, vec2(-1,-1)/ tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(-1,1) / tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(1,1)  / tex_dim + texel_loc).r
-                         + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r) / 4
-                        * ((option_wb) ? white_balance.b : 1.0f);
+                         + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r) / 4;
             }
         }
     }
     else if (bayer_pos == bvec2(0,1) ){ // blue
-        color.b = texture2D(lightfield, texel_loc).r * ((option_wb) ? white_balance.b : 1.0f);
+        color.b = texture2D(lightfield, texel_loc).r;
         if (view_mode >= 2){ // demosaicking
             if (demosaicking_mode == 0){ // nearest neighbour
                 color.g = (texture2D(lightfield, vec2(1,0) / tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(0,1) / tex_dim + texel_loc).r) / 2;
-                color.r = texture2D(lightfield,  vec2(1,1) / tex_dim + texel_loc).r
-                        * ((option_wb) ? white_balance.r : 1.0f);
+                color.r = texture2D(lightfield,  vec2(1,1) / tex_dim + texel_loc).r;
             }
             else if(demosaicking_mode == 1){ // bilinear
                 color.g = (texture2D(lightfield, vec2(0,1)  / tex_dim + texel_loc).r
@@ -98,8 +90,7 @@ vec4 computeColorAt(vec2 texel_pos){
                 color.r = (texture2D(lightfield, vec2(-1,-1)/ tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(-1,1) / tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(1,1)  / tex_dim + texel_loc).r
-                         + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r) / 4
-                        * ((option_wb) ? white_balance.r : 1.0f);
+                         + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r) / 4;
             }
         }
     }
@@ -107,20 +98,21 @@ vec4 computeColorAt(vec2 texel_pos){
         color.g = texture2D(lightfield, texel_loc).r;
         if (view_mode >= 2){ // demosaicking
             if (demosaicking_mode == 0){ // nearest neighbour
-                color.r = texture2D(lightfield, vec2(0,1)  / tex_dim + texel_loc).r
-                        * ((option_wb) ? white_balance.r : 1.0f);
-                color.b = texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r
-                        * ((option_wb) ? white_balance.b : 1.0f);
+                color.r = texture2D(lightfield, vec2(0,1)  / tex_dim + texel_loc).r;
+                color.b = texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r;
             }
             else if(demosaicking_mode == 1){ // bilinear
                 color.r = (texture2D(lightfield, vec2(0,1)   / tex_dim + texel_loc).r
-                         + texture2D(lightfield, vec2(0,-1)  / tex_dim + texel_loc).r ) / 2
-                        * ((option_wb) ? white_balance.r : 1.0f);
+                         + texture2D(lightfield, vec2(0,-1)  / tex_dim + texel_loc).r ) / 2;
                 color.b = (texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r
-                         + texture2D(lightfield, vec2(1,0)  / tex_dim + texel_loc).r ) / 2
-                        * ((option_wb) ? white_balance.b : 1.0f);
+                         + texture2D(lightfield, vec2(1,0)  / tex_dim + texel_loc).r ) / 2;
             }
         }
+    }
+
+    if (option_wb){
+        color.r *= white_balance.r;
+        color.b *= white_balance.b;
     }
 
     if (option_ccm){
@@ -186,6 +178,9 @@ vec4 recalcPosAtSTUV(vec2 st, vec2 uv){
 
 void main(void)
 {
+    //color = texture2D(lightfield,texc.st).rgb;
+    //return;
+
     if (view_mode == 0)
         color = texture2D(lightfield,texc.st).rgb;
     else if(view_mode <= 2) // bayer & demosaic
@@ -195,22 +190,18 @@ void main(void)
 
         // get st coordinate we are in
         vec2 st = vec2(1.0,1.0)-texc.st;
-        // get uv coordinate we are in
-        vec2 uv = lens_pos_view;
 
         // show all st-planes of all uvs
-        if (option_display_mode == 0){
-            vec2 uv_exact = texc.st * (lenslet_dim + vec2(1,1));
-            ivec2 uv_from_origin = ivec2(uv_exact);
-            uv = uv_from_origin - lenslet_dim/2;
-            st = vec2(1.0,1.0)-(uv_exact - uv_from_origin); // invert
-        }
+        vec2 uv_exact = texc.st * (lenslet_dim + vec2(1,1));
+        vec2 uv = ivec2(uv_exact) - lenslet_dim/2; // from center
+        st = vec2(1.0,1.0)-(uv_exact - ivec2(uv_exact)); // invert
 
         st = vec2(0.5,0.5) - st; // from center
-        st *= size_st; // size of st plane
-        //st *= (tex_dim / vec2(12,lenslet_dim.y));
+        st *= vec2(floor(size_st.x)-2, size_st.y); // size of st plane
+        //st *= size_st; // size of st plane
         st = floor(st + vec2(0.5f,0.5f)); // exact st position
 
+        uv *= vec2(15,15) / lenslet_dim; //stretch uv coordinates from center
         color = recalcPosAtSTUV(st, uv).rgb;
     }
     /*

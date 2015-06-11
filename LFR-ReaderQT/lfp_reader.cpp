@@ -174,8 +174,9 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
         if (image.isNull()){ // retry with JPG
             image = QImage::fromData(pic, sec_length, "JPG");
         }
-
-        main->addTabImage(byte_header, sha1_hash, sec_length, image, false, meta_infos); // is a normal image
+        if(save_file_name.empty()){
+            main->addTabImage(byte_header, sha1_hash, sec_length, image, false, meta_infos); // is a normal image
+        }
         delete(pic);
     }
     else if (section_type == HEADER_TYPE::TYPE_RAWPICTURE){
@@ -206,7 +207,9 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
         // just finish the section
         readBytes(input, sec_length);
         QString info = "Unknown Type";
-        main->addTabMetaInfos(byte_header, sha1_hash, sec_length, "Unknown Type", "X");
+        if (save_file_name.empty()){
+            main->addTabMetaInfos(byte_header, sha1_hash, sec_length, "Unknown Type", "X");
+        }
         correct = true;
     }
     else
