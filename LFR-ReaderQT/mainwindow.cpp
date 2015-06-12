@@ -145,6 +145,9 @@ void MainWindow::chooseVideoPlayer(){
     QCheckBox *demosaic_render = new QCheckBox("Demosaic");
     connect( demosaic_render, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(renderDemosaic(bool)) );
     demosaic_render->setChecked(false);
+    QLabel *fps_display = new QLabel("Fps: ");
+    connect( opengl_movieplayer, SIGNAL(refreshFPS(QString)), fps_display, SLOT(setText(QString)));
+    display_options_layout->addWidget(fps_display);
     display_options_layout->addWidget(demosaic_render);
     display_options_layout->addWidget(display);
     display_options_layout->addWidget(focus_slider);
@@ -244,6 +247,9 @@ void MainWindow::chooseVideoFromImageSequence(){
     QCheckBox *demosaic_render = new QCheckBox("Demosaic");
     connect( demosaic_render, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(renderDemosaic(bool)) );
     demosaic_render->setChecked(false);
+    QLabel *fps_display = new QLabel("Fps: ");
+    connect( opengl_movieplayer, SIGNAL(refreshFPS(QString)), fps_display, SLOT(setText(QString)));
+    display_options_layout->addWidget(fps_display);
     display_options_layout->addWidget(demosaic_render);
     display_options_layout->addWidget(display);
     display_options_layout->addWidget(focus_slider);
@@ -404,6 +410,9 @@ void MainWindow::chooseLFImage(){
         QCheckBox *demosaic_render = new QCheckBox("Is demosaicked");
         connect( demosaic_render, SIGNAL(toggled(bool)), opengl_viewer, SLOT(renderDemosaic(bool)) );
         demosaic_render->setChecked(false);
+        QLabel *fps_display = new QLabel("Fps: ");
+        connect( opengl_viewer, SIGNAL(refreshFPS(QString)), fps_display, SLOT(setText(QString)));
+        display_options_layout->addWidget(fps_display);
         display_options_layout->addWidget(demosaic_render);
         display_options_layout->addWidget(display);
         display_options_layout->addWidget(uvmode);

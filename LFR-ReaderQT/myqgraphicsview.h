@@ -13,7 +13,7 @@ public:
     MyGraphicsView(QWidget* parent, QImage image, LFP_Reader::lf_meta meta_infos);
     void setRawPixmap(QPixmap pixmap);
     void setViewPixmap();
-    void demosaic(int type);
+    QImage demosaic(int type);
     void showLenslet();
     QImage getFinishedImage();
 

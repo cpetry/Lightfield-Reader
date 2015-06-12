@@ -141,7 +141,7 @@ void MyGraphicsView::setViewPixmap(){
 
 }
 
-void MyGraphicsView::demosaic(int type){
+QImage MyGraphicsView::demosaic(int type){
     QImage raw_image = image.convertToFormat(QImage::Format_RGB32);
     QImage new_image(image.width(), image.height(), QImage::Format_RGB32);
 
@@ -174,27 +174,6 @@ void MyGraphicsView::demosaic(int type){
     // demosaic that sucker!
     else if (type == 2 || type == 3){
 
-        // nearest neighbour
-        /*for (int r=0; r < image.height(); r+=2){
-            QRgb *new_scL1 = reinterpret_cast< QRgb *>( new_image.scanLine( r ) );
-            QRgb *new_scL2 = reinterpret_cast< QRgb *>( new_image.scanLine( r+1 ) );
-            QRgb *scL1 = reinterpret_cast< QRgb *>( image.scanLine( r ) );
-            QRgb *scL2 = reinterpret_cast< QRgb *>( image.scanLine( r+1 ) );
-            for (int c=0; c < image.width(); c+=2){
-                // Gr R
-                // Gb B
-                int r = qRed(scL1[c+1]);
-                int g = int((qRed(scL1[c]) + qRed(scL2[c+1])) * 0.5f + 0.5f);
-                //int g = qRed(scL2[c+1]);
-                int b = qRed(scL2[c]);
-
-                new_scL1[c]   = qRgb(r,g,b);
-                new_scL1[c+1] = qRgb(r,g,b);
-                new_scL2[c]   = qRgb(r,g,b);
-                new_scL2[c+1] = qRgb(r,g,b);
-            }
-        }*/
-
         // bilinear
         for (int r=0; r < raw_image.height(); r+=2){
             QRgb *new_scL1 = reinterpret_cast< QRgb *>( new_image.scanLine( r ) );
@@ -202,23 +181,59 @@ void MyGraphicsView::demosaic(int type){
             QRgb *scL1 = reinterpret_cast< QRgb *>( raw_image.scanLine( r ) );
             QRgb *scL2 = reinterpret_cast< QRgb *>( raw_image.scanLine( r+1 ) );
             for (int c=0; c < raw_image.width(); c+=2){
-                // Gr R
-                // B  Gb
-                int r_tr  = qRed(scL1[c+1]);    //
-                int r_nl  = (c>1) ? qRed(scL1[c-1]) : r_tr; // left
-                int r_nb  = (r+2<raw_image.height()) ? qRed(raw_image.pixel(c+1,r+2)) : r_tr; // bottom
-                int r_nlb = (r+2<raw_image.height() && (c>1)) ? qRed(raw_image.pixel(c-1,r+2)) : r_tr; // left-bottom
-                int r_tl = int((r_tr + r_nl) / 2.0f +0.5f);
-                int r_br = int((r_tr + r_nb) / 2.0f +0.5f);
-                int r_bl = int((r_tr + r_nl + r_nb + r_nlb) / 4.0f +0.5f);
+                QPoint b1 = QPoint(c,(r-1)>=0 ? r-1 : r);
+                QPoint b2 = QPoint((c+2)<raw_image.width() ? (c+2):c,(r-1)>=0 ? r-1 : r);
+                QPoint b3 = QPoint(c,r+1);
+                QPoint b4 = QPoint(c+2<raw_image.width()?c+2:c,r+1);
 
-                int g = int((qRed(scL1[c]) + qRed(scL2[c+1])) * 0.5f + 0.5f);
-                int b = qRed(scL2[c]);
+                QPoint r1 = QPoint(c-1>=0?(c-1):(c+1),r);
+                QPoint r2 = QPoint(c+1,r);
+                QPoint r3 = QPoint(c-1>=0?(c-1):(c+1),(r+2)<raw_image.height() ? r+2 : r);
+                QPoint r4 = QPoint(c+1,(r+2)<raw_image.height() ? r+2 : r);
 
-                new_scL1[c]   = qRgb(r_tl,g,b);
-                new_scL1[c+1] = qRgb(r_tr,g,b);
-                new_scL2[c]   = qRgb(r_bl,g,b);
-                new_scL2[c+1] = qRgb(r_br,g,b);
+                QPoint g1 = QPoint(c+1,(r-1)>=0 ? r-1 : r);
+                QPoint g2 = QPoint(c,r);
+                QPoint g3 = QPoint(c+2<raw_image.width()?c+2:c,r);
+                QPoint g4 = QPoint(c-1>=0?(c-1):(c+1),r+1);
+                QPoint g5 = QPoint(c+1,r+1);
+                QPoint g6 = QPoint(c,(r+2)<raw_image.height() ? r+2 : r);
+
+                /*int red  = qRed(scL1[c+1]);    //
+                int r_l  = (c>1) ? qRed(scL1[c-1]) : red; // left
+                int r_b  = (r+2<raw_image.height()) ? qRed(raw_image.pixel(c+1,r+2)) : red; // bottom
+                int r_lb = (r+2<raw_image.height() && (c>1)) ? qRed(raw_image.pixel(c-1,r+2)) : red; // left-bottom
+                int blue = qRed(scL2[c+1]);    //
+                int b_t  = (r>1) ? qRed(raw_image.pixel(c,r-1)) : blue; // top
+                int b_tr = (r-2>=0 && c+2<raw_image.width()) ? qRed(raw_image.pixel(c+2,r-1)) : blue; // left-bottom
+                int b_r  = (c+2<raw_image.width()) ? qRed(raw_image.pixel(c+2,r+1)) : blue; // bottom
+
+                int greenr = qRed(scL2[c+1]);    //
+                int gr_t  = (r>1) ? qRed(raw_image.pixel(c,r-1)) : blue; // top
+                int b_tr = (r-2>=0 && c+2<raw_image.width()) ? qRed(raw_image.pixel(c+2,r-1)) : blue; // left-bottom
+                int b_r  = (c+2<raw_image.width()) ? qRed(raw_image.pixel(c+2,r+1)) : blue; // bottom*/
+                // Gr
+                new_scL1[c]   = qRgb((qRed(raw_image.pixel(r1)) + qRed(raw_image.pixel(r2))+0.5) / 2,
+                                      qRed(raw_image.pixel(g2)),
+                                     (qRed(raw_image.pixel(b1)) + qRed(raw_image.pixel(b3))+0.5) / 2);
+
+                // R
+                new_scL1[c+1] = qRgb(qRed(raw_image.pixel(r2)),
+                                     (qRed(raw_image.pixel(g1)) + qRed(raw_image.pixel(g2)) +
+                                      qRed(raw_image.pixel(g3)) + qRed(raw_image.pixel(g5)) +0.5) / 4,
+                                     (qRed(raw_image.pixel(b1)) + qRed(raw_image.pixel(b2)) +
+                                      qRed(raw_image.pixel(b3)) + qRed(raw_image.pixel(b4)) +0.5) / 4);
+
+                // B
+                new_scL2[c]   = qRgb((qRed(raw_image.pixel(r1)) + qRed(raw_image.pixel(r2)) +
+                                      qRed(raw_image.pixel(r3)) + qRed(raw_image.pixel(r4)) +0.5) / 4,
+                                     (qRed(raw_image.pixel(g2)) + qRed(raw_image.pixel(g4)) +
+                                      qRed(raw_image.pixel(g5)) + qRed(raw_image.pixel(g6)) +0.5) / 4,
+                                     qRed(raw_image.pixel(b3)));
+
+                // Gb
+                new_scL2[c+1] = qRgb((qRed(raw_image.pixel(r2)) + qRed(raw_image.pixel(r4))+0.5) / 2,
+                                     qRed(raw_image.pixel(g5)),
+                                    (qRed(raw_image.pixel(b3)) + qRed(raw_image.pixel(b4))+0.5) / 2);
             }
         }
     }
@@ -272,13 +287,14 @@ void MyGraphicsView::demosaic(int type){
                     new_b = pow(new_b, gamma);
                 }
 
-                scL[col] = qRgb(new_r*255,new_g*255,new_b*255);
+                scL[col] = qRgb(std::min(int(new_r*255),255),std::min(int(new_g*255),255),std::min(int(new_b*255),255));
             }
         }
         finished_image = new_image;
     }
     QPixmap p = QPixmap::fromImage(new_image);
     this->setRawPixmap(p);
+    return new_image;
 }
 
 QImage MyGraphicsView::getFinishedImage(){

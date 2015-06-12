@@ -38,8 +38,8 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_v
     this->meta_infos = meta_infos;
 
     opengl_option_is_demosaicked = false;
-    this->is_video = false;
-
+    this->is_video = is_video;
+    texture_stringlist = files;
     open_image_sequence(files);
 }
 
@@ -68,6 +68,7 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::l
 
 
     texture = image.mirrored();
+
     is_video = false;
     opengl_option_is_demosaicked = false;
     this->meta_infos.width = image.width();
@@ -103,20 +104,23 @@ void QOpenGL_LFViewer::setClearColor(const QColor &color)
 }
 
 void QOpenGL_LFViewer::open_image_sequence(QStringList filenames){
-    texture = QImage(filenames.at(0));
-
-    if (texture.format() == QImage::Format_Indexed8){
-        texture_is_raw = true;
+    texture = QImage(filenames.at(0)).mirrored();
+    this->meta_infos.width = texture.width();
+    this->meta_infos.height = texture.height();
+    texture_is_raw = (texture.format() == QImage::Format_Indexed8);
+    for(int i=0; i< filenames.length(); i++){
+        QImage image = QImage(filenames[i]);
+        texture_list.push_back(image.mirrored());
+        //texture_list.push_back(cv::imread(filenames[i].toStdString()));
     }
-    else
-        texture_is_raw = false;
-
-    texture = texture.mirrored();
+    frames_total = filenames.length();
     opengl_option_is_demosaicked = true;
 
-    int fps = 5;
+    int fps = 1;
     tick_ms = 1000/fps;
-    start_video();
+
+    //start_video();
+    myTimer.singleShot(200,SLOT(_tick()));
 }
 
 void QOpenGL_LFViewer::open_video(QString filename)
@@ -247,14 +251,14 @@ void QOpenGL_LFViewer::open_video(QString filename)
     qDebug() << "Channel has " << QString::number(channel.channels()) << " channels";
 
     // reset to position 0
-    //_capture->set(CV_CAP_PROP_POS_FRAMES, 0);
+    _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
 
-    //update();
-    start_video();
+    //start_video();
+    myTimer.singleShot(200,SLOT(_tick()));
 }
 
 void QOpenGL_LFViewer::start_video(){
-    myTimer.start(tick_ms);
+    myTimer.start();
     QObject::connect(&myTimer, SIGNAL(timeout()), this, SLOT(_tick()));
 }
 
@@ -270,13 +274,13 @@ void QOpenGL_LFViewer::_tick()
     //frame= frame.reshape(1);
 
     if (texture_is_raw && is_video){
-        if (frame_count >= frames_total+1)
+        if (frame_count >= frames_total)
         {
             frame_count = 0;
             _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
             if (_capture->get(CV_CAP_PROP_POS_FRAMES) != 0){
                 qDebug() << "cvWindow::_tick !!! cant rewind";
-                myTimer.stop();
+                //myTimer.stop();
                 return;
             }
         }
@@ -292,16 +296,18 @@ void QOpenGL_LFViewer::_tick()
 
     }
     else{
-        if (frame_count >= frames_total+1)
+        if (frame_count >= frames_total)
             frame_count = 0;
 
         //_capture->grab();
         //_capture->retrieve(channel,3);
         //cv::flip(channel, channel, 0);
         //if (frame_count == 0){
-            glBindTexture(GL_TEXTURE_2D, texture_id);
-            _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, meta_infos.width,
-                   meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture.bits());
+        //texture = QImage(texture_list[frame_count]).mirrored();
+        glBindTexture( GL_TEXTURE_2D, texture_id);
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, meta_infos.width,
+                //meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].data);
+                meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].bits());
         //}
     }
 
@@ -459,11 +465,13 @@ void QOpenGL_LFViewer::initializeGL(){
     //qDebug() << "focusID: " << focusprogram->programId();
     //qDebug() << "Error : " << glGetError();
 
-
+    fps_frames_elapsed = 0;
+    fps_time_elapsed = 0;
+    fps_timer.start();
 }
 
 void QOpenGL_LFViewer::paintGL(){
-    //fbo->bind();
+
     QMatrix4x4 m_result;
     if (opengl_view_mode != 4){
         m_result.ortho(-orthosize, +orthosize, +orthosize, -orthosize, 0.0f, 10.0f);
@@ -507,9 +515,21 @@ void QOpenGL_LFViewer::paintGL(){
         glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
     }
 
-
-    //glDisable(GL_TEXTURE_2D);
-    //glFlush ();
+    fps_frames_elapsed++;
+    fps_time_elapsed += fps_timer.elapsed();
+    fps_timer.restart();
+    if (fps_time_elapsed >= 1000){
+        double fps = fps_time_elapsed/1000.0f * fps_frames_elapsed;
+        //qDebug() << QString::number(fps);
+        emit refreshFPS("FPS: " + QString::number(fps));
+        fps_time_elapsed = 0;
+        fps_frames_elapsed = 0;
+    }
+    if (is_video){
+        _tick();
+    }
+    else
+        update();
 }
 
 void QOpenGL_LFViewer::restructureImageToUVST(){

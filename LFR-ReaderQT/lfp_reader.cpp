@@ -184,7 +184,9 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
 
         // if we want to save several images, we dont need tabs
         if(!save_file_name.empty()){
-            QImage retImg(image.width(),image.height(),QImage::Format_Indexed8);
+            MyGraphicsView* mgv = new MyGraphicsView(NULL, image, meta_infos);
+            image = mgv->demosaic(3);
+            /*QImage retImg(image.width(),image.height(),QImage::Format_Indexed8);
             QVector<QRgb> table( 256 );
             for( int i = 0; i < 256; ++i )
                 table[i] = qRgb(i,i,i);
@@ -192,9 +194,10 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
             retImg.setColorTable(table);
             for(int i =0; i< image.width();i++)
                 for(int j=0; j< image.height();j++)
-                    retImg.setPixel(i,j,qRed(image.pixel(i,j)));
+                    retImg.setPixel(i,j,qRed(image.pixel(i,j)));*/
 
-            bool saved = retImg.save(QString::fromStdString(save_file_name));
+            //bool saved = retImg.save(QString::fromStdString(save_file_name));
+            bool saved = image.save(QString::fromStdString(save_file_name));
             if (saved)
                 qDebug() << "Saved raw to " << QString::fromStdString(save_file_name);
             else

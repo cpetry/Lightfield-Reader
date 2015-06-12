@@ -88,6 +88,9 @@ private:
     cv::VideoCapture* _capture = NULL;
     QColor clearColor;
     QImage texture;
+    QStringList texture_stringlist;
+    std::vector<QImage> texture_list;
+    //std::vector<cv::Mat> texture_list;
     LFP_Reader::lf_meta meta_infos;
 
     QOpenGLShaderProgram *program, *focusprogram;
@@ -98,6 +101,9 @@ private:
     QPoint lastPos;
     Qt::MouseButton currentButton = Qt::MidButton;
     QTimer myTimer;
+    QElapsedTimer fps_timer;
+    int fps_frames_elapsed = 0;
+    int fps_time_elapsed = 0;
     cv::Mat channel;
     int tick_ms = 5;
 
@@ -127,4 +133,5 @@ private:
 
 signals:
     void closed();
+    void refreshFPS(QString fps_text);
 };
