@@ -32,7 +32,7 @@ public:
      */
     QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video, LFP_Reader::lf_meta meta_infos);
     QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_video, LFP_Reader::lf_meta meta_infos);
-    QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos);
+    QOpenGL_LFViewer(QWidget *parent, QString file, LFP_Reader::lf_meta meta_infos);
     ~QOpenGL_LFViewer();
 
     /*
@@ -87,10 +87,10 @@ private:
     void restructureImageToUVST();
     cv::VideoCapture* _capture = NULL;
     QColor clearColor;
-    QImage texture;
+    cv::Mat texture;
     QStringList texture_stringlist;
-    std::vector<QImage> texture_list;
-    //std::vector<cv::Mat> texture_list;
+    //std::vector<QImage> texture_list;
+    std::vector<cv::Mat> texture_list;
     LFP_Reader::lf_meta meta_infos;
 
     QOpenGLShaderProgram *program, *focusprogram;

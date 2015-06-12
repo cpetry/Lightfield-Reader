@@ -355,7 +355,7 @@ void MainWindow::chooseLFImage(){
         QHBoxLayout* view_layout = new QHBoxLayout();
         QWidget* view_widget = new QWidget();
         view_widget->setLayout(view_layout);
-        QOpenGL_LFViewer *opengl_viewer = new QOpenGL_LFViewer(this, QImage(file), reader.meta_infos);
+        QOpenGL_LFViewer *opengl_viewer = new QOpenGL_LFViewer(this, file, reader.meta_infos);
         view_layout->addWidget(opengl_viewer);
         tabWidget->addTab(view_widget,"View");
 
@@ -618,26 +618,6 @@ void MainWindow::addTabImage(QString header, QString sha1, int sec_length, QImag
         microlens_layout->addWidget(microlens_view);
         microlens_layout->addWidget(microlens_options_widget);
         image_tab->addTab(microlens_widget,"Microlenses");
-
-        // View tab
-        /////////////////
-        QHBoxLayout* view_layout = new QHBoxLayout();
-        QWidget* view_widget = new QWidget();
-        view_widget->setLayout(view_layout);
-        QOpenGL_LFViewer* opengl_viewer = new QOpenGL_LFViewer(this, microlens_view->getFinishedImage(), meta_infos);
-        view_layout->addWidget(opengl_viewer);
-        opengl_viewer->update();
-
-        QWidget* view_options_widget = new QWidget();
-        QGridLayout* view_options_layout = new QGridLayout();
-        view_options_widget->setLayout(view_options_layout);
-        QDoubleSpinBox *overlap = new QDoubleSpinBox();
-        overlap->setDecimals(7);
-        overlap->setValue((meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch));
-        connect( overlap, SIGNAL(valueChanged(double)), opengl_viewer, SLOT(setOverlap(double)) );
-        view_options_layout->addWidget(new QLabel("Overlap:"),0,1);
-        view_options_layout->addWidget(overlap,0,2);
-        image_tab->addTab(view_widget,"View");
     }
 
 

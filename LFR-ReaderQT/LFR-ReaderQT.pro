@@ -16,14 +16,12 @@ SOURCES += main.cpp \
         mainwindow.cpp \
     lfp_reader.cpp \
     myqgraphicsview.cpp \
-    qopengl_lfviewer.cpp \
-    qopengl_lfvideoplayer.cpp
+    qopengl_lfviewer.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
     myqgraphicsview.h \
-    qopengl_lfviewer.h \
-    qopengl_lfvideoplayer.h
+    qopengl_lfviewer.h
 
 FORMS    += mainwindow.ui
 

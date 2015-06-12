@@ -4,7 +4,6 @@
 #include <QMainWindow>
 #include "myqgraphicsview.h"
 #include "qopengl_lfviewer.h"
-#include "qopengl_lfvideoplayer.h"
 
 #include "lfp_reader.h"
 

@@ -18,14 +18,14 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video,
     this->is_video = is_video;
 
     if (!is_video){
-        texture = QImage(file);
-        if (texture.format() == QImage::Format_Indexed8){
+        texture = cv::imread(file.toStdString());
+        if (texture.channels() == 1){
             texture_is_raw = true;
         }
         else
             texture_is_raw = false;
-
-        texture = texture.mirrored();
+        cv::flip(texture, texture, 0);
+        //texture = texture.mirrored();
     }
     else{
         open_video(file);
@@ -44,21 +44,23 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_v
 }
 
 
-QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::lf_meta meta_infos)
+QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0){
     this->meta_infos = meta_infos;
 
-    if (image.format() == QImage::Format_Indexed8)
+    int channels = (QImage(file).format() == QImage::Format_Indexed8) ? 1 : 3;
+    texture = cv::imread(file.toStdString(), 1); //loads color if it is available
+    if (channels == 1)
         texture_is_raw = true;
     else
         texture_is_raw = false;
 
-    if (this->meta_infos.width != image.width()
-        || this->meta_infos.height != image.height()){
+    if (this->meta_infos.width != texture.cols
+        || this->meta_infos.height != texture.rows){
         int ret = QMessageBox::warning(this, tr("Warning!"),
                              QString(QString("Meta Info seems not to be correct.\n") +
-                               "Width: Meta-Image " + QString::number(this->meta_infos.width) + " " + QString::number(image.width()) +"\n"+
-                               "Height: Meta-Image " + QString::number(this->meta_infos.height) + " " + QString::number(image.height()) +"\n"+
+                               "Width: Meta-Image " + QString::number(this->meta_infos.width) + " " + QString::number(texture.cols) +"\n"+
+                               "Height: Meta-Image " + QString::number(this->meta_infos.height) + " " + QString::number(texture.rows) +"\n"+
                                "Do you want to continue?"),
                              QMessageBox::Yes | QMessageBox::No,
                              QMessageBox::No);
@@ -66,13 +68,14 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QImage &image, LFP_Reader::l
             return;
     }
 
-
-    texture = image.mirrored();
+    cv::cvtColor(texture, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
+    cv::flip(texture, texture, 0);
+    //texture = image.mirrored();
 
     is_video = false;
     opengl_option_is_demosaicked = false;
-    this->meta_infos.width = image.width();
-    this->meta_infos.height = image.height();
+    this->meta_infos.width = texture.cols;
+    this->meta_infos.height = texture.rows;
 }
 
 
@@ -104,14 +107,19 @@ void QOpenGL_LFViewer::setClearColor(const QColor &color)
 }
 
 void QOpenGL_LFViewer::open_image_sequence(QStringList filenames){
-    texture = QImage(filenames.at(0)).mirrored();
-    this->meta_infos.width = texture.width();
-    this->meta_infos.height = texture.height();
-    texture_is_raw = (texture.format() == QImage::Format_Indexed8);
+    texture = cv::imread(filenames.at(0).toStdString(), 1); //loads color if it is available
+    cv::cvtColor(texture, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
+    cv::flip(texture, texture, 0);
+    this->meta_infos.width = texture.cols;
+    this->meta_infos.height = texture.rows;
+    texture_is_raw = (texture.channels() == 1);
     for(int i=0; i< filenames.length(); i++){
-        QImage image = QImage(filenames[i]);
-        texture_list.push_back(image.mirrored());
-        //texture_list.push_back(cv::imread(filenames[i].toStdString()));
+        //QImage image = QImage(filenames[i]);
+        //texture_list.push_back(image.mirrored());
+        cv::Mat img = cv::imread(filenames[i].toStdString(), 1);//loads color if it is available
+        cv::cvtColor(img, img, CV_BGR2RGBA); // has to be RGBA ... -.-
+        cv::flip(img, img, 0);
+        texture_list.push_back(img);
     }
     frames_total = filenames.length();
     opengl_option_is_demosaicked = true;
@@ -243,7 +251,7 @@ void QOpenGL_LFViewer::open_video(QString filename)
     }
     else{
         filename.chop(4);
-        texture = QImage(filename);
+        texture = cv::imread(filename.toStdString());
 
     }
     //
@@ -305,9 +313,9 @@ void QOpenGL_LFViewer::_tick()
         //if (frame_count == 0){
         //texture = QImage(texture_list[frame_count]).mirrored();
         glBindTexture( GL_TEXTURE_2D, texture_id);
-        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, meta_infos.width,
-                //meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].data);
-                meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].bits());
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, meta_infos.width,
+                meta_infos.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_list[frame_count].data);
+                //meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].bits());
         //}
     }
 
@@ -372,12 +380,14 @@ void QOpenGL_LFViewer::initializeGL(){
     glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
+    glEnable(GL_TEXTURE_2D);
     // The texture we're going to render to
     renderedTexture_id;
     glGenTextures(1, &renderedTexture_id);
     glBindTexture(GL_TEXTURE_2D, renderedTexture_id);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, meta_infos.width, meta_infos.height, 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, meta_infos.width,
+                 meta_infos.height, 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -428,17 +438,18 @@ void QOpenGL_LFViewer::initializeGL(){
     glGenTextures(1, &texture_id);
     glBindTexture( GL_TEXTURE_2D, texture_id);
 
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST); // scale linearly when image bigger than texture
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST); // scale linearly when image smalled than texture
+
+    //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
     if (texture_is_raw)
         _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, meta_infos.width,
-                    meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, ((is_video) ? NULL : texture.bits()));
+                    meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, ((is_video) ? NULL : texture.ptr()));
     else
-        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, meta_infos.width,
-                    meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, ((is_video) ? NULL : texture.bits()));
+        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.cols,
+                    texture.rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, ((is_video) ? NULL : texture.data));
 
 
     focusprogram = new QOpenGLShaderProgram;
@@ -694,18 +705,18 @@ void QOpenGL_LFViewer::saveRaw(){
                                                 "Images (*.png *.xpm *.jpg)");
 
     QVector<QRgb> colorTable;
-    QImage retImg(texture.width(),texture.height(),QImage::Format_Indexed8);
+    QImage retImg(texture.cols,texture.rows,QImage::Format_Indexed8);
     QVector<QRgb> table( 256 );
     for( int i = 0; i < 256; ++i )
     {
         table[i] = qRgb(i,i,i);
     }
     retImg.setColorTable(table);
-    for(int i =0; i< texture.width();i++)
+    for(int i =0; i< texture.cols;i++)
     {
-        for(int j=0; j< texture.height();j++)
+        for(int j=0; j< texture.rows;j++)
         {
-            QRgb value = texture.pixel(i,j);
+            QRgb value = texture.at<int>(i,j);
             retImg.setPixel(i,j,qRed(value));
         }
 
