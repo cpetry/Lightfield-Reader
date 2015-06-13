@@ -24,7 +24,7 @@ int demosaicking_mode = 1; // 0 - nearest neighbour, 1 - bilinear
 bool option_superresolution = true;
 uniform bool is_raw = true;
 
-varying mediump vec4 texc;
+varying mediump vec3 texc;
 layout(location = 0) out vec3 color;
 
 vec4 computeColorAt(vec2 texel_pos){

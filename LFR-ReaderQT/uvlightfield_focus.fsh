@@ -12,7 +12,7 @@ uniform float focus_spread = 1;
 float focus_radius = 7;
 mat3 gauss_sharp = mat3(0,-1,0,-1,5,-1,0,-1,0);
 uniform float focus = 0;
-varying mediump vec4 texc;
+varying mediump vec3 texc;
 
 void main(void)
 {

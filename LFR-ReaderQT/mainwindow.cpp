@@ -277,14 +277,14 @@ void MainWindow::chooseCreateVideoFromPNGs(){
         else if (image_type == 1) // demosaicd // YV12, FFV1, MPEG, GREY
             codec = "HFYU";
         else if (image_type == 2) // UV-ST // MP42, I263, DIV3
-            codec = "Y422";
+            codec = "HFYU"; // Y422
         char c[4];
         strcpy(c, codec.c_str());
 
         // use first image as a reference image for the video
         QImage info(files.at(0));
         cv::Size S = cv::Size(static_cast<int>(info.width()), static_cast<int>(info.height()));
-        std::string name = files[0].split("_0")[0].toStdString() + ".avi";
+        std::string name = files[0].split(".")[0].toStdString() + ".avi";
 
         // Open the output
         cv::VideoWriter outputVideo;
@@ -355,7 +355,7 @@ void MainWindow::chooseLFImage(){
         QHBoxLayout* view_layout = new QHBoxLayout();
         QWidget* view_widget = new QWidget();
         view_widget->setLayout(view_layout);
-        QOpenGL_LFViewer *opengl_viewer = new QOpenGL_LFViewer(this, file, reader.meta_infos);
+        QOpenGL_LFViewer *opengl_viewer = new QOpenGL_LFViewer(this, file, false, reader.meta_infos);
         view_layout->addWidget(opengl_viewer);
         tabWidget->addTab(view_widget,"View");
 

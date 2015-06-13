@@ -16,16 +16,38 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video,
 
     opengl_option_is_demosaicked = false;
     this->is_video = is_video;
+    this->is_imagelist = false;
 
     if (!is_video){
-        texture = cv::imread(file.toStdString());
-        if (texture.channels() == 1){
-            texture_is_raw = true;
+        int channels = (QImage(file).format() == QImage::Format_Indexed8) ? 1 : 3;
+        cv::Mat tex = cv::imread(file.toStdString(), 1); //loads color if it is available
+
+        texture_is_raw = (channels == 1);
+        if (texture_is_raw){
+            int from_to[] = { 0,0 };
+            texture = cv::Mat::Mat(cv::Size(tex.cols, tex.rows), 0); // frame will have depth 0 ?!
+            cv::mixChannels( &tex, 1, &texture, 1, from_to,1 );
         }
-        else
-            texture_is_raw = false;
+        else{
+            cv::cvtColor(tex, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
+        }
+
+        if (this->meta_infos.width != texture.cols
+            || this->meta_infos.height != texture.rows){
+            int ret = QMessageBox::warning(this, tr("Warning!"),
+                                 QString(QString("Meta Info seems not to be correct.\n") +
+                                   "Width: Meta-Image " + QString::number(this->meta_infos.width) + " " + QString::number(texture.cols) +"\n"+
+                                   "Height: Meta-Image " + QString::number(this->meta_infos.height) + " " + QString::number(texture.rows) +"\n"+
+                                   "Do you want to continue?"),
+                                 QMessageBox::Yes | QMessageBox::No,
+                                 QMessageBox::No);
+            if (ret == QMessageBox::No)
+                return;
+        }
+        this->meta_infos.width = texture.cols;
+        this->meta_infos.height = texture.rows;
+
         cv::flip(texture, texture, 0);
-        //texture = texture.mirrored();
     }
     else{
         open_video(file);
@@ -39,49 +61,17 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_v
 
     opengl_option_is_demosaicked = false;
     this->is_video = is_video;
+    this->is_imagelist = true;
     texture_stringlist = files;
     open_image_sequence(files);
-}
-
-
-QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, LFP_Reader::lf_meta meta_infos)
-    : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0){
-    this->meta_infos = meta_infos;
-
-    int channels = (QImage(file).format() == QImage::Format_Indexed8) ? 1 : 3;
-    texture = cv::imread(file.toStdString(), 1); //loads color if it is available
-    if (channels == 1)
-        texture_is_raw = true;
-    else
-        texture_is_raw = false;
-
-    if (this->meta_infos.width != texture.cols
-        || this->meta_infos.height != texture.rows){
-        int ret = QMessageBox::warning(this, tr("Warning!"),
-                             QString(QString("Meta Info seems not to be correct.\n") +
-                               "Width: Meta-Image " + QString::number(this->meta_infos.width) + " " + QString::number(texture.cols) +"\n"+
-                               "Height: Meta-Image " + QString::number(this->meta_infos.height) + " " + QString::number(texture.rows) +"\n"+
-                               "Do you want to continue?"),
-                             QMessageBox::Yes | QMessageBox::No,
-                             QMessageBox::No);
-        if (ret == QMessageBox::No)
-            return;
-    }
-
-    cv::cvtColor(texture, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
-    cv::flip(texture, texture, 0);
-    //texture = image.mirrored();
-
-    is_video = false;
-    opengl_option_is_demosaicked = false;
-    this->meta_infos.width = texture.cols;
-    this->meta_infos.height = texture.rows;
 }
 
 
 QOpenGL_LFViewer::~QOpenGL_LFViewer()
 {
     makeCurrent();
+    _func330->glDeleteBuffers(2, pboIds);
+    texture.release();
     vbo.destroy();
     delete program;
     delete focusprogram;
@@ -109,6 +99,7 @@ void QOpenGL_LFViewer::setClearColor(const QColor &color)
 void QOpenGL_LFViewer::open_image_sequence(QStringList filenames){
     texture = cv::imread(filenames.at(0).toStdString(), 1); //loads color if it is available
     cv::cvtColor(texture, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
+    pretexture = cv::Mat::Mat(cv::Size(texture.cols, texture.rows), texture.channels());
     cv::flip(texture, texture, 0);
     this->meta_infos.width = texture.cols;
     this->meta_infos.height = texture.rows;
@@ -210,22 +201,9 @@ void QOpenGL_LFViewer::open_video(QString filename)
 
     resize(625, 433);
     // Retrieve fps from the video. If not available, default will be 25
-    int fps = 0;
+
     frames_total = _capture->get(CV_CAP_PROP_FRAME_COUNT);
-    fps = _capture->get(CV_CAP_PROP_FPS);
-    qDebug() << "cvWindow::_open default fps is " << fps;
 
-    if (!fps)
-        fps = 30;
-    // overriding frames
-    fps = 5;
-    //_capture->set(CV_CAP_PROP_FPS, fps);
-
-    // Set FPS playback
-    tick_ms = 1000/fps;
-
-    //texture_is_raw = false;
-    //opengl_option_is_demosaicked = true;
     int image_type = QMessageBox::warning(this, tr("Image Format"),
                          tr("What kind of video?\n"
                             "Raw, Demosaiced or UV-ST?"),
@@ -234,29 +212,33 @@ void QOpenGL_LFViewer::open_video(QString filename)
     opengl_option_is_demosaicked = (image_type == 2);
 
 
-    //_capture->set(CV_CAP_PROP_POS_FRAMES, 1);
-
     qDebug() << "Reading first frame";
-    cv::Mat frame = cv::Mat::Mat(cv::Size(meta_infos.width, meta_infos.height), 1);
+    cv::Mat frame;
 
     if (texture_is_raw){
-        channel = cv::Mat::Mat(cv::Size(meta_infos.width, meta_infos.height), 0);
         _capture->read(frame);
-        //_capture->read(channel);
         int from_to[] = { 0,0 };
-        //qDebug() << "Frame has " << QString::number(frame.channels()) << " channels";
-        channel = cv::Mat::Mat(cv::Size(frame.cols, frame.rows), 0); // frame will have depth 0 ?!
-        cv::mixChannels( &frame, 1, &channel, 1, from_to,1 );
-        cv::flip(channel, channel, 0);
+        texture = cv::Mat::Mat(cv::Size(frame.cols, frame.rows), 0);
+        cv::mixChannels( &frame, 1, &texture, 1, from_to,1 );
+        // init single channel
+        pretexture = cv::Mat::Mat(cv::Size(frame.cols, frame.rows), 0);
     }
     else{
-        filename.chop(4);
-        texture = cv::imread(filename.toStdString());
+        //qDebug() << QString::number(_capture->get(CV_CAP_PROP_FOURCC));
+        //return;
+        _capture->read(frame);
 
+        cv::cvtColor(frame, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
+        // init single channel
+        pretexture = cv::Mat::Mat(cv::Size(frame.cols, frame.rows), frame.channels());
     }
+    cv::flip(texture, texture, 0);
     //
-    qDebug() << "Channel has x: " << QString::number(channel.cols) << ", y:" << QString::number(channel.rows) << " channels";
-    qDebug() << "Channel has " << QString::number(channel.channels()) << " channels";
+    //qDebug() << "Channel has x: " << QString::number(channel.cols) << ", y:" << QString::number(channel.rows) << " channels";
+    //qDebug() << "Channel has " << QString::number(channel.channels()) << " channels";
+
+
+
 
     // reset to position 0
     _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
@@ -281,7 +263,7 @@ void QOpenGL_LFViewer::_tick()
                 ", channels: " << QString::number(frame.channels());*/
     //frame= frame.reshape(1);
 
-    if (texture_is_raw && is_video){
+    if (!is_imagelist){
         if (frame_count >= frames_total)
         {
             frame_count = 0;
@@ -293,29 +275,123 @@ void QOpenGL_LFViewer::_tick()
             }
         }
 
-        cv::Mat frame;
-        int from_to[] = { 0,0 };
-        *_capture >> frame;
-        cv::mixChannels( &frame, 1, &channel, 1, from_to, 1 );
-        cv::flip(channel, channel, 0);
-        glBindTexture( GL_TEXTURE_2D, texture_id);
-        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, meta_infos.width,
-                meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, channel.data);
 
+
+
+        // start to copy from PBO to texture object ///////
+        // Pixel Buffer Object indices
+        index = (index + 1) % 2;
+        int nextIndex = (index + 1) % 2;
+        //int nextIndex = 0;
+        //index = nextIndex = 0;
+
+        // bind the texture and PBO
+        glBindTexture(GL_TEXTURE_2D, texture_id);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[index]);
+
+        // copy pixels from PBO to texture object
+        // Use offset instead of ponter.
+        if (texture_is_raw){
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texture.cols, texture.rows,
+                        GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, 0);
+        }
+        else
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texture.cols, texture.rows,
+                        GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+        // bind PBO to update pixel values
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[nextIndex]);
+
+        // map the buffer object into client's memory
+        // Note that glMapBufferARB() causes sync issue.
+        // If GPU is working with this buffer, glMapBufferARB() will wait(stall)
+        // for GPU to finish its job. To avoid waiting (stall), you can call
+        // first glBufferDataARB() with NULL pointer before glMapBufferARB().
+        // If you do that, the previous data in PBO will be discarded and
+        // glMapBufferARB() returns a new allocated pointer immediately
+        // even if GPU is still working with the previous data.
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, texture.cols * texture.rows * texture.channels(),
+                        0, GL_STREAM_DRAW);
+        GLubyte* ptr = (GLubyte*)_func330->glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+        if(ptr)
+        {
+            texture.data = ptr;
+            _func330->glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER); // release pointer to mapping buffer
+        }
+
+
+        // it is good idea to release PBOs with ID 0 after use.
+        // Once bound with 0, all pixel operations behave normal ways.
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+        cv::Mat frame;
+        _capture->read(frame);
+
+        if (texture_is_raw){
+
+            int from_to[] = { 0,0 };
+            cv::mixChannels( &frame, 1, &pretexture, 1, from_to,1 );
+            cv::flip(pretexture, texture, 0);
+
+        }
+        else{
+            cv::cvtColor(frame, pretexture, CV_BGR2RGBA); // has to be RGBA ... -.-
+            cv::flip(pretexture, texture, 0);
+        }
     }
     else{
         if (frame_count >= frames_total)
             frame_count = 0;
 
-        //_capture->grab();
-        //_capture->retrieve(channel,3);
-        //cv::flip(channel, channel, 0);
-        //if (frame_count == 0){
-        //texture = QImage(texture_list[frame_count]).mirrored();
-        glBindTexture( GL_TEXTURE_2D, texture_id);
-        _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, meta_infos.width,
+        texture_list[frame_count].copyTo(texture);
+        // start to copy from PBO to texture object ///////
+        // Pixel Buffer Object indices
+        index = (index + 1) % 2;
+        int nextIndex = (index + 1) % 2;
+        //int nextIndex = 0;
+        //index = nextIndex = 0;
+
+        // bind the texture and PBO
+        glBindTexture(GL_TEXTURE_2D, texture_id);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[index]);
+
+        // copy pixels from PBO to texture object
+        // Use offset instead of ponter.
+        if (texture_is_raw)
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texture.cols, texture.rows,
+                        GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, 0);
+        else
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texture.cols, texture.rows,
+                        GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+        // bind PBO to update pixel values
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[nextIndex]);
+
+        // map the buffer object into client's memory
+        // Note that glMapBufferARB() causes sync issue.
+        // If GPU is working with this buffer, glMapBufferARB() will wait(stall)
+        // for GPU to finish its job. To avoid waiting (stall), you can call
+        // first glBufferDataARB() with NULL pointer before glMapBufferARB().
+        // If you do that, the previous data in PBO will be discarded and
+        // glMapBufferARB() returns a new allocated pointer immediately
+        // even if GPU is still working with the previous data.
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, texture.cols * texture.rows * texture.channels(),
+                        0, GL_STREAM_DRAW);
+        GLubyte* ptr = (GLubyte*)_func330->glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+        if(ptr)
+        {
+            texture.data = ptr;
+            _func330->glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER); // release pointer to mapping buffer
+        }
+
+        // it is good idea to release PBOs with ID 0 after use.
+        // Once bound with 0, all pixel operations behave normal ways.
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+        /*glBindTexture( GL_TEXTURE_2D, texture_id);
+        _func330->glTexSubImage2D(GL_TEXTURE_2D, 0, GL_RGBA, meta_infos.width,
                 meta_infos.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_list[frame_count].data);
-                //meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].bits());
+                //meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].bits());*/
         //}
     }
 
@@ -332,7 +408,7 @@ void QOpenGL_LFViewer::close_video()
 
 void QOpenGL_LFViewer::initializeGL(){
     initializeOpenGLFunctions();
-    _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
+    _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_4_2_Core>();
     //_func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_1>();
     if (_func330)
         _func330->initializeOpenGLFunctions();
@@ -381,6 +457,8 @@ void QOpenGL_LFViewer::initializeGL(){
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
     glEnable(GL_TEXTURE_2D);
+    //glShadeModel(GL_FLAT);                      // shading mathod: GL_SMOOTH or GL_FLAT
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);      // 4-byte pixel alignment
     // The texture we're going to render to
     renderedTexture_id;
     glGenTextures(1, &renderedTexture_id);
@@ -446,11 +524,19 @@ void QOpenGL_LFViewer::initializeGL(){
 
     if (texture_is_raw)
         _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, meta_infos.width,
-                    meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, ((is_video) ? NULL : texture.ptr()));
+                    meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, ((is_video) ? NULL : texture.data));
     else
         _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.cols,
                     texture.rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, ((is_video) ? NULL : texture.data));
 
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    _func330->glGenBuffers(2, pboIds);
+    _func330->glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[0]);
+    _func330->glBufferData(GL_PIXEL_UNPACK_BUFFER, texture.cols * texture.rows * texture.channels(), 0, GL_STREAM_DRAW);
+    _func330->glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[1]);
+    _func330->glBufferData(GL_PIXEL_UNPACK_BUFFER, texture.cols * texture.rows * texture.channels(), 0, GL_STREAM_DRAW);
+    _func330->glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
     focusprogram = new QOpenGLShaderProgram;
     focusprogram->addShader(vfocusshader);
@@ -475,6 +561,9 @@ void QOpenGL_LFViewer::initializeGL(){
     //qDebug() << "programID: " << program->programId();
     //qDebug() << "focusID: " << focusprogram->programId();
     //qDebug() << "Error : " << glGetError();
+
+    // create 2 pixel buffer objects, you need to delete them when program exits.
+            // glBufferDataARB with NULL pointer reserves only memory space.
 
     fps_frames_elapsed = 0;
     fps_time_elapsed = 0;
@@ -521,10 +610,12 @@ void QOpenGL_LFViewer::paintGL(){
     }
 
     glUniform1i(focusprogram->uniformLocation("renderedTexture"), 0);
-    glEnable(GL_TEXTURE_2D);
     for (int i = 0; i < 1; ++i) {
         glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
     }
+
+    // unbind texture
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     fps_frames_elapsed++;
     fps_time_elapsed += fps_timer.elapsed();

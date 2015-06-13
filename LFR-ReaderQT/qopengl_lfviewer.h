@@ -2,8 +2,8 @@
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
-//#include <QOpenGLFunctions_4_2_Core>
-#include <QOpenGLFunctions_3_3_Core>
+#include <QOpenGLFunctions_4_2_Core>
+//#include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLBuffer>
 #include <QOpenGLTexture>
 #include <QOpenGLShaderProgram>
@@ -32,7 +32,6 @@ public:
      */
     QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video, LFP_Reader::lf_meta meta_infos);
     QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_video, LFP_Reader::lf_meta meta_infos);
-    QOpenGL_LFViewer(QWidget *parent, QString file, LFP_Reader::lf_meta meta_infos);
     ~QOpenGL_LFViewer();
 
     /*
@@ -92,10 +91,11 @@ private:
     //std::vector<QImage> texture_list;
     std::vector<cv::Mat> texture_list;
     LFP_Reader::lf_meta meta_infos;
+    GLuint pboIds[2];                   // IDs of PBO
 
     QOpenGLShaderProgram *program, *focusprogram;
     QOpenGLBuffer vbo;
-    QOpenGLFunctions_3_3_Core *_func330;
+    QOpenGLFunctions_4_2_Core *_func330;
     //QOpenGLFunctions_3_1 *_func330;
     QOpenGLContext *_context;
     QPoint lastPos;
@@ -104,8 +104,9 @@ private:
     QElapsedTimer fps_timer;
     int fps_frames_elapsed = 0;
     int fps_time_elapsed = 0;
-    cv::Mat channel;
+    cv::Mat pretexture;
     int tick_ms = 5;
+    int index = 0;
 
     GLuint texture_id, framebuffer, renderedTexture_id, renderedTex_id, lightfield_id;
     float orthosize = 1.0f;
@@ -129,7 +130,7 @@ private:
     bool opengl_option_is_demosaicked = false;
     bool opengl_option_display_mode = 1;
     bool texture_is_raw = false;
-    bool is_video = false;
+    bool is_video = false, is_imagelist = false;
 
 signals:
     void closed();
