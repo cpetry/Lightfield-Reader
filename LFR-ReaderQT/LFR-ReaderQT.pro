@@ -25,11 +25,10 @@ HEADERS  += mainwindow.h \
 
 FORMS    += mainwindow.ui
 
-DISTFILES += \
-    lightfield_raw.fsh \
-    lightfield_raw.vert \
-    uvlightfield_focus.fsh \
-    uvlightfield_focus.vert
+DISTFILES +=
+
+RESOURCES += \
+    shaders.qrc
 
 ## OpenCV settings for Windows and OpenCV 2.4.2
 win32 {
@@ -85,3 +84,6 @@ win32 {
             -lopencv_videostab2411
     }
 }
+
+RESOURCES += \
+    shaders.qrc

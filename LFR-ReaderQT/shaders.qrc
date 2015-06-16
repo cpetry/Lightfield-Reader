@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>lightfield_raw.fsh</file>
+        <file>lightfield_raw.vert</file>
+        <file>uvlightfield_focus.fsh</file>
+        <file>uvlightfield_focus.vert</file>
+    </qresource>
+</RCC>

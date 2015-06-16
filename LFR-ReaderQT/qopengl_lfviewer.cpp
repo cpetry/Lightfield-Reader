@@ -408,14 +408,35 @@ void QOpenGL_LFViewer::close_video()
 
 void QOpenGL_LFViewer::initializeGL(){
     initializeOpenGLFunctions();
+
+    // SHADER
+    QOpenGLShader* vshader = new QOpenGLShader(QOpenGLShader::Vertex, this);
+    bool compiled = vshader->compileSourceFile(":/lightfield_raw.vert");
+
+    QOpenGLShader* fshader = new QOpenGLShader(QOpenGLShader::Fragment, this);
+    compiled = compiled && fshader->compileSourceFile(":/lightfield_raw.fsh");
+
+    QOpenGLShader* vfocusshader = new QOpenGLShader(QOpenGLShader::Vertex, this);
+    compiled = compiled && vfocusshader->compileSourceFile(":/uvlightfield_focus.vert");
+
+    QOpenGLShader* ffocusshader = new QOpenGLShader(QOpenGLShader::Fragment, this);
+    compiled = compiled && ffocusshader->compileSourceFile(":/uvlightfield_focus.fsh");
+
+    if(!compiled)
+        QMessageBox::warning(this, tr("Warning!"),
+        QString(QString("Could not compile shaders!\n")),
+        QMessageBox::Ok);
+
     _func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_4_2_Core>();
     //_func330 = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_1>();
     if (_func330)
         _func330->initializeOpenGLFunctions();
     else
     {
-        qWarning() << "Could not obtain required OpenGL context version";
-        exit(1);
+        QMessageBox::warning(this, tr("Warning!"),
+        QString(QString("Could not obtain required OpenGL context version\nNot able to display!")),
+        QMessageBox::Ok);
+        return;
     }
     qWarning() << "Creating Object";
     makeObject();
@@ -476,18 +497,6 @@ void QOpenGL_LFViewer::initializeGL(){
     _func330->glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
 
 
-    // SHADER
-    QOpenGLShader* vshader = new QOpenGLShader(QOpenGLShader::Vertex, this);
-    vshader->compileSourceFile("lightfield_raw.vert");
-
-    QOpenGLShader* fshader = new QOpenGLShader(QOpenGLShader::Fragment, this);
-    fshader->compileSourceFile("lightfield_raw.fsh");
-
-    QOpenGLShader* vfocusshader = new QOpenGLShader(QOpenGLShader::Vertex, this);
-    vfocusshader->compileSourceFile("uvlightfield_focus.vert");
-
-    QOpenGLShader* ffocusshader = new QOpenGLShader(QOpenGLShader::Fragment, this);
-    ffocusshader->compileSourceFile("uvlightfield_focus.fsh");
 
     // PROGRAMS
     program = new QOpenGLShaderProgram;
