@@ -11,17 +11,38 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = LFR-ReaderQT
 TEMPLATE = app
 
+isEmpty(TARGET_EXT) {
+    win32 {
+        TARGET_CUSTOM_EXT = .exe
+    }
+    macx {
+        TARGET_CUSTOM_EXT = .app
+    }
+} else {
+    TARGET_CUSTOM_EXT = $${TARGET_EXT}
+}
+
+win32 {
+    DEPLOY_COMMAND = windeployqt
+}
+macx {
+    DEPLOY_COMMAND = macdeployqt
+}
 
 SOURCES += main.cpp \
         mainwindow.cpp \
     lfp_reader.cpp \
     myqgraphicsview.cpp \
-    qopengl_lfviewer.cpp
+    qopengl_lfviewer.cpp \
+    reconstruction3d.cpp \
+    imagedepth.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
     myqgraphicsview.h \
-    qopengl_lfviewer.h
+    qopengl_lfviewer.h \
+    reconstruction3d.h \
+    imagedepth.h
 
 FORMS    += mainwindow.ui
 
@@ -40,12 +61,23 @@ win32 {
     message("* Using settings for Windows.")
     INCLUDEPATH += $$(OPENCV_DIR)/include \
                    $$(OPENCV_DIR)/include/opencv \
-                   $$(OPENCV_DIR)/include/opencv2
+                   $$(OPENCV_DIR)/include/opencv2 \
+                   $$(PCL_ROOT)/include/pcl-1.7 \
+                   $$(PCL_ROOT)/3rdParty/Boost/include/boost-1_57 \
+                   $$(PCL_ROOT)/3rdParty/Eigen/eigen3 \
+                   $$(PCL_ROOT)/3rdParty/VTK/include/vtk-6.2
 
     LIBS += -L$$(OPENCV_DIR)/x64/vc12/lib \
-            -L$$(OPENCV_DIR)/x64/vc12/bin
+            -L$$(OPENCV_DIR)/x64/vc12/bin \
+            -L$$(PCL_ROOT)/lib \
+            -L$$(PCL_ROOT)/bin \
+            -L$$(PCL_ROOT)/3rdParty/Boost/lib \
+            -L$$(PCL_ROOT)/3rdParty/VTK/lib \
+            -L$$(PCL_ROOT)/3rdParty/VTK/bin \
+            -L./dependencies
 
     CONFIG(debug, debug | release) {
+        DEPLOY_TARGET = $$shell_quote($$shell_path($${OUT_PWD}/debug/$${TARGET}$${TARGET_CUSTOM_EXT}))
         LIBS += -lopencv_calib3d2411d \
             -lopencv_contrib2411d \
             -lopencv_core2411d \
@@ -62,10 +94,16 @@ win32 {
             -lopencv_stitching2411d \
             -lopencv_ts2411d \
             -lopencv_video2411d \
-            -lopencv_videostab2411d
+            -lopencv_videostab2411d \
+            -lpcl_search_debug \
+            -lpcl_common_debug \
+            -lpcl_features_debug \
+            -lpcl_surface_debug \
+            -lpcl_visualization_debug
     }
 
     CONFIG(release, debug | release) {
+        DEPLOY_TARGET = $$shell_quote($$shell_path($${OUT_PWD}/release/$${TARGET}$${TARGET_CUSTOM_EXT}))
         LIBS += -lopencv_calib3d2411 \
             -lopencv_contrib2411 \
             -lopencv_core2411 \
@@ -82,6 +120,20 @@ win32 {
             -lopencv_stitching2411 \
             -lopencv_ts2411 \
             -lopencv_video2411 \
-            -lopencv_videostab2411
+            -lopencv_videostab2411 \
+            -lpcl_search_release \
+            -lpcl_common_release \
+            -lpcl_features_release \
+            -lpcl_io_release \
+            -lpcl_surface_release \
+            -lpcl_visualization_release \
+            -lvtkCommonDataModel-6.2 \
+            -lvtkCommonCore-6.2 \
+            -luser32
     }
 }
+warning (./dependencies)
+#  # Uncomment the following line to help debug the deploy command when running qmake
+#  warning($${DEPLOY_COMMAND} $${DEPLOY_TARGET})
+
+QMAKE_POST_LINK = $${DEPLOY_COMMAND} $${DEPLOY_TARGET}

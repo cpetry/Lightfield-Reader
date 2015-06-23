@@ -15,6 +15,9 @@
 #include <QDate>
 #include <QMessageBox>
 
+#include "reconstruction3d.h"
+#include "imagedepth.h"
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
@@ -29,10 +32,15 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->actionLFP, &QAction::triggered, this, &MainWindow::chooseLFP);
     connect(ui->actionLFImage, &QAction::triggered, this, &MainWindow::chooseLFImage);
+    connect(ui->actionConvert_Images, &QAction::triggered, this, &MainWindow::chooseConvertImages);
+
     connect(ui->actionExtractLFFolder, &QAction::triggered, this, &MainWindow::chooseExtractRawLFFolder);
     connect(ui->actionCreateFromPNGs, &QAction::triggered, this, &MainWindow::chooseCreateVideoFromPNGs);
     connect(ui->actionPlayer, &QAction::triggered, this, &MainWindow::chooseVideoPlayer);
     connect(ui->actionOpen_Image_Sequence, &QAction::triggered, this, &MainWindow::chooseVideoFromImageSequence);
+    connect(ui->actionCreate_3DScene, &QAction::triggered, this, &MainWindow::chooseCreate3DScene);
+    connect(ui->actionGenerate_DepthMap, &QAction::triggered, this, &MainWindow::chooseGenerate_DepthMap);
+
 
     //chooseLFImage();
 }
@@ -431,6 +439,21 @@ void MainWindow::chooseLFImage(){
     }
 }
 
+void MainWindow::chooseConvertImages(){
+    // Display dialog so the user can select a file
+    QStringList filenames = QFileDialog::getOpenFileNames(this,
+                                                          QString("Choose multiple Lightfield Images"), // window name
+                                                          "../",                                       // directory
+                                                          QString("LightField Images(*.PNG *.JPG)"));   // filetype
+
+    if (filenames.isEmpty()) // Do nothing if filename is empty
+        return;
+
+    for(int i=0; i<filenames.length(); i++){
+        QImage(filenames[i]).save(filenames[i].split('.')[0] + ".jpg");
+    }
+}
+
 void MainWindow::chooseLFP(){
 
     QString file = QFileDialog::getOpenFileName(this,
@@ -633,3 +656,81 @@ void MainWindow::addTabImage(QString header, QString sha1, int sec_length, QImag
     tabWidget->addTab(complete_widget, "Image");
 }
 
+void MainWindow::chooseCreate3DScene(){
+
+    ui->statusBar->showMessage("Loading Depth Map...");
+    tabWidget->clear();
+
+    reconstruction3D* recon = new reconstruction3D();
+
+    QWidget* display_options = new QWidget();
+    QVBoxLayout* display_options_layout = new QVBoxLayout();
+    display_options->setLayout(display_options_layout);
+    QPushButton *adddepth = new QPushButton("Add DepthMap");
+    connect( adddepth, SIGNAL(clicked()), recon, SLOT(addDepthMap()) );
+    QPushButton *calc_pointcloud = new QPushButton("Calc PointCloud");
+    connect( calc_pointcloud, SIGNAL(clicked()), recon, SLOT(calculatePointCloud()) );
+    QPushButton *appr_normals = new QPushButton("Approximate Normals");
+    connect( appr_normals, SIGNAL(clicked()), recon, SLOT(approximateNormals()) );
+    QPushButton *show_pointcloud = new QPushButton("Show PointCloud");
+    connect( show_pointcloud, SIGNAL(clicked()), recon, SLOT(showPointCloud()) );
+    QPushButton *save_pointcloud = new QPushButton("Save PointCloud");
+    connect( save_pointcloud, SIGNAL(clicked()), recon, SLOT(saveCloudToPLY()) );
+    QDoubleSpinBox *mesh_mu = new QDoubleSpinBox();
+    connect( mesh_mu, SIGNAL(valueChanged(double)), recon, SLOT(setMeshMu(double)) );
+    QPushButton *calc_mesh = new QPushButton("Calc Mesh");
+    connect( calc_mesh, SIGNAL(clicked()), recon, SLOT(calculateMesh()) );
+    QPushButton *show_mesh = new QPushButton("Show Mesh");
+    connect( show_mesh, SIGNAL(clicked()), recon, SLOT(showMesh()) );
+    //QLabel *fps_display = new QLabel("Fps: ");
+    //connect( opengl_viewer, SIGNAL(refreshFPS(QString)), fps_display, SLOT(setText(QString)));
+    display_options_layout->addWidget(adddepth);
+    display_options_layout->addWidget(calc_pointcloud);
+    display_options_layout->addWidget(appr_normals);
+    display_options_layout->addWidget(show_pointcloud);
+    display_options_layout->addWidget(save_pointcloud);
+    display_options_layout->addWidget(mesh_mu);
+    display_options_layout->addWidget(calc_mesh);
+    display_options_layout->addWidget(show_mesh);
+    //display_options_layout->addWidget(uvmode);
+    tabWidget->addTab(display_options, "Options");
+}
+
+void MainWindow::chooseGenerate_DepthMap(){
+    QString file = QFileDialog::getOpenFileName(this,
+                               QString("Choose Lightfield Image"),           // window name
+                               "../",                                       // relative folder
+                               QString("LightField Images(*.PNG *.JPG)"));  // filetype
+
+    if (file.isEmpty()) // Do nothing if filename is empty
+        return;
+
+    tabWidget->clear();
+
+    QHBoxLayout* view_layout = new QHBoxLayout();
+    QWidget* view_widget = new QWidget();
+    view_widget->setLayout(view_layout);
+    QLabel* depthmap = new QLabel("Depth map");
+
+    depthmap->setPixmap(QPixmap::fromImage(ImageDepth::generateFromUVST(file.toStdString())));
+    view_layout->addWidget(depthmap);
+    tabWidget->addTab(view_widget,"Depth map");
+
+    QGridLayout* buttons_layout = new QGridLayout();
+    QWidget* buttons_widget = new QWidget();
+    buttons_widget->setMaximumSize(300,1000);
+    buttons_widget->setLayout(buttons_layout);
+
+    QPushButton *gray = new QPushButton("Gray");
+    QPushButton *bayer = new QPushButton("Bayer");
+    QPushButton *demosaic = new QPushButton("Demosaic");
+    buttons_layout->addWidget(gray,0,1);
+    buttons_layout->addWidget(bayer,0,2);
+    buttons_layout->addWidget(demosaic,1,1);
+
+    view_layout->addWidget(buttons_widget);
+
+    tabWidget->addTab(view_widget,"View");
+
+    //QImage depth = imagedepth::generate();
+}

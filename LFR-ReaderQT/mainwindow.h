@@ -28,10 +28,13 @@ public:
 public slots:
     void chooseLFP();
     void chooseLFImage();
+    void chooseConvertImages();
     void chooseExtractRawLFFolder();
     void chooseCreateVideoFromPNGs();
     void chooseVideoPlayer();
     void chooseVideoFromImageSequence();
+    void chooseCreate3DScene();
+    void chooseGenerate_DepthMap();
 
 private:
     Ui::MainWindow *ui;
