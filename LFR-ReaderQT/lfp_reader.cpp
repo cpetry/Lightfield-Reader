@@ -184,7 +184,7 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
 
         // if we want to save several images, we dont need tabs
         if(!save_file_name.empty()){
-            MyGraphicsView* mgv = new MyGraphicsView(NULL, image, meta_infos);
+            lfp_raw_view* mgv = new lfp_raw_view(NULL, image, meta_infos);
             image = mgv->demosaic(3);
             /*QImage retImg(image.width(),image.height(),QImage::Format_Indexed8);
             QVector<QRgb> table( 256 );

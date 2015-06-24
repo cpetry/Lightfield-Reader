@@ -2,7 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include "myqgraphicsview.h"
+#include "lfp_raw_view.h"
 #include "qopengl_lfviewer.h"
 
 #include "lfp_reader.h"
@@ -38,7 +38,7 @@ public slots:
 
 private:
     Ui::MainWindow *ui;
-    MyGraphicsView* color_view, *microlens_view;
+    lfp_raw_view* color_view, *microlens_view;
     QTabWidget* tabWidget;
     LFP_Reader reader;
 };

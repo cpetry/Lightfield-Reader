@@ -35,14 +35,16 @@ SOURCES += main.cpp \
     myqgraphicsview.cpp \
     qopengl_lfviewer.cpp \
     reconstruction3d.cpp \
-    imagedepth.cpp
+    imagedepth.cpp \
+    lfp_raw_view.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
     myqgraphicsview.h \
     qopengl_lfviewer.h \
     reconstruction3d.h \
-    imagedepth.h
+    imagedepth.h \
+    lfp_raw_view.h
 
 FORMS    += mainwindow.ui
 
@@ -98,8 +100,12 @@ win32 {
             -lpcl_search_debug \
             -lpcl_common_debug \
             -lpcl_features_debug \
+            -lpcl_io_debug \
             -lpcl_surface_debug \
-            -lpcl_visualization_debug
+            -lpcl_visualization_debug \
+            -lvtkCommonDataModel-6.2 \
+            -lvtkCommonCore-6.2 \
+            -luser32
     }
 
     CONFIG(release, debug | release) {

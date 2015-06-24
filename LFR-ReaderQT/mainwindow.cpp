@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "lfp_reader.h"
+#include "lfp_raw_view.h"
 #include "myqgraphicsview.h"
 
 #include <fstream>
@@ -14,6 +15,7 @@
 #include <QStringList>
 #include <QDate>
 #include <QMessageBox>
+#include <QComboBox>
 
 #include "reconstruction3d.h"
 #include "imagedepth.h"
@@ -541,7 +543,7 @@ void MainWindow::addTabImage(QString header, QString sha1, int sec_length, QImag
 
 
     // Display widget for image
-    color_view = new MyGraphicsView(NULL, image, meta_infos);
+    color_view = new lfp_raw_view(NULL, image, meta_infos);
     QWidget* color_widget = new QWidget();
     QHBoxLayout* color_layout = new QHBoxLayout();
     color_widget->setLayout(color_layout);
@@ -597,7 +599,7 @@ void MainWindow::addTabImage(QString header, QString sha1, int sec_length, QImag
 
         // Microlens tab
         /////////////////
-        microlens_view = new MyGraphicsView(NULL, image, meta_infos);
+        microlens_view = new lfp_raw_view(NULL, image, meta_infos);
         microlens_view->demosaic(3);
         QGridLayout* microlens_options_layout = new QGridLayout();
         QWidget* microlens_options_widget = new QWidget();
@@ -697,36 +699,37 @@ void MainWindow::chooseCreate3DScene(){
 }
 
 void MainWindow::chooseGenerate_DepthMap(){
-    QString file = QFileDialog::getOpenFileName(this,
-                               QString("Choose Lightfield Image"),           // window name
-                               "../",                                       // relative folder
-                               QString("LightField Images(*.PNG *.JPG)"));  // filetype
-
-    if (file.isEmpty()) // Do nothing if filename is empty
-        return;
 
     tabWidget->clear();
 
     QHBoxLayout* view_layout = new QHBoxLayout();
     QWidget* view_widget = new QWidget();
     view_widget->setLayout(view_layout);
-    QLabel* depthmap = new QLabel("Depth map");
+    MyGraphicsView* view = new MyGraphicsView(this);
 
-    depthmap->setPixmap(QPixmap::fromImage(ImageDepth::generateFromUVST(file.toStdString())));
-    view_layout->addWidget(depthmap);
+    view_layout->addWidget(view);
     tabWidget->addTab(view_widget,"Depth map");
+
+    ImageDepth* id = new ImageDepth(view);
 
     QGridLayout* buttons_layout = new QGridLayout();
     QWidget* buttons_widget = new QWidget();
     buttons_widget->setMaximumSize(300,1000);
     buttons_widget->setLayout(buttons_layout);
 
-    QPushButton *gray = new QPushButton("Gray");
-    QPushButton *bayer = new QPushButton("Bayer");
-    QPushButton *demosaic = new QPushButton("Demosaic");
-    buttons_layout->addWidget(gray,0,1);
-    buttons_layout->addWidget(bayer,0,2);
-    buttons_layout->addWidget(demosaic,1,1);
+    QPushButton* load = new QPushButton("Load Image");
+    connect(load, SIGNAL(clicked()), id, SLOT(loadImage()));
+    buttons_layout->addWidget(load,0,1);
+
+    QComboBox* cb = new QComboBox(this);
+    cb->addItem("input");
+    cb->addItem("sobel");
+    cb->addItem("gauss*sobel");
+    cb->addItem("disparity");
+    cb->addItem("depthmap");
+    cb->addItem("depthmap_uvst");
+    connect(cb, SIGNAL(currentIndexChanged(QString)), id, SLOT(updateLabel(QString)));
+    buttons_layout->addWidget(cb,1,1);
 
     view_layout->addWidget(buttons_widget);
 

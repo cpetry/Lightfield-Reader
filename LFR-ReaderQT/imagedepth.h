@@ -6,14 +6,29 @@
 #include <opencv2/highgui/highgui.hpp>
 
 #include <QImage>
+#include <QLabel>
+#include <QObject>
 
-class ImageDepth
+#include "myqgraphicsview.h"
+
+class ImageDepth : public QObject
 {
+    Q_OBJECT
+
 public:
-    ImageDepth();
+    ImageDepth(MyGraphicsView* view){
+        this->view = view;
+    }
     ~ImageDepth();
 
-    static QImage generateFromUVST(std::string filename);
+
+public slots:
+    void updateLabel(QString);
+    void loadImage();
+
+private:
+    void generateFromUVST();
+    std::pair<cv::Mat, cv::Mat> calculateDisparityFromEPI(cv::Mat epi, std::string result = "");
 
     static QImage Mat2QImageCol(const cv::Mat3b &src) {
             QImage dest(src.cols, src.rows, QImage::Format_ARGB32);
@@ -26,7 +41,6 @@ public:
             }
             return dest;
     }
-
 
     static QImage Mat2QImage(const cv::Mat_<double> &src)
     {
@@ -43,6 +57,8 @@ public:
             return dest;
     }
 
+    MyGraphicsView* view;
+    cv::Mat input_img, output_img;
 };
 
 #endif // IMAGEDEPTH_H
