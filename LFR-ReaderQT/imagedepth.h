@@ -23,11 +23,18 @@ public:
 
 
 public slots:
-    void updateLabel(QString);
+    void updateLabel();
     void loadImage();
+    void setViewMode(QString v){ this->view_mode = v.toStdString(); updateLabel();}
+    void setSobelScale(double sc){ this->sobel_scale = sc; updateLabel();}
+    void setSobelKernel(int sk){ this->sobel_k_size = sk; updateLabel();}
+    void setGaussSigma(double gs){ this->gauss_sigma = gs; updateLabel();}
+    void setGaussKernel(int gk){ this->gauss_k_size = gk; updateLabel();}
 
 private:
-    void generateFromUVST();
+    void stereoLikeTaxonomy();
+    cv::Mat generateDepthMapFromDisparity(cv::Mat dis);
+    void generateFromUVST(bool show_epi = false);
     std::pair<cv::Mat, cv::Mat> calculateDisparityFromEPI(cv::Mat epi, std::string result = "");
 
     static QImage Mat2QImageCol(const cv::Mat3b &src) {
@@ -59,6 +66,11 @@ private:
 
     MyGraphicsView* view;
     cv::Mat input_img, output_img;
+    std::string view_mode = "";
+    int sobel_k_size = 3;
+    float sobel_scale = 1.0f;
+    int gauss_k_size = 9;
+    float gauss_sigma = 2.0f;
 };
 
 #endif // IMAGEDEPTH_H

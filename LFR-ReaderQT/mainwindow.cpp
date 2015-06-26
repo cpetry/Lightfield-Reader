@@ -8,6 +8,7 @@
 
 #include <QDebug>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QCheckBox>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -727,11 +728,37 @@ void MainWindow::chooseGenerate_DepthMap(){
     cb->addItem("gauss*sobel");
     cb->addItem("disparity");
     cb->addItem("depthmap");
+    cb->addItem("epi_uvst");
     cb->addItem("depthmap_uvst");
-    connect(cb, SIGNAL(currentIndexChanged(QString)), id, SLOT(updateLabel(QString)));
+    connect(cb, SIGNAL(currentIndexChanged(QString)), id, SLOT(setViewMode(QString)));
     buttons_layout->addWidget(cb,1,1);
 
+    QDoubleSpinBox* sobel_scale = new QDoubleSpinBox();
+    sobel_scale->setValue(2.0);
+    QSpinBox* sobel_k_size = new QSpinBox();
+    sobel_k_size->setSingleStep(2);
+    sobel_k_size->setMaximum(31);
+    sobel_k_size->setMinimum(1);
+    sobel_k_size->setValue(3);
+    QDoubleSpinBox* gauss_sigma = new QDoubleSpinBox();
+    gauss_sigma->setValue(2.0);
+    QSpinBox* gauss_kernel = new QSpinBox();
+    gauss_kernel->setSingleStep(2);
+    gauss_kernel->setValue(9);
+    gauss_kernel->setMaximum(31);
+    gauss_kernel->setMinimum(1);
+    connect(sobel_scale, SIGNAL(valueChanged(double)), id, SLOT(setSobelScale(double)));
+    connect(sobel_k_size, SIGNAL(valueChanged(int)), id, SLOT(setSobelKernel(int)));
+    connect(gauss_sigma, SIGNAL(valueChanged(double)), id, SLOT(setGaussSigma(double)));
+    connect(gauss_kernel, SIGNAL(valueChanged(int)), id, SLOT(setGaussKernel(int)));
+
+    buttons_layout->addWidget(sobel_scale,2,1);
+    buttons_layout->addWidget(sobel_k_size,2,2);
+    buttons_layout->addWidget(gauss_sigma,3,1);
+    buttons_layout->addWidget(gauss_kernel,3,2);
+
     view_layout->addWidget(buttons_widget);
+
 
     tabWidget->addTab(view_widget,"View");
 

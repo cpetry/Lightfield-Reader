@@ -199,9 +199,6 @@ void QOpenGL_LFViewer::open_video(QString filename)
         meta_infos.height = video_height;
     }
 
-    resize(625, 433);
-    // Retrieve fps from the video. If not available, default will be 25
-
     frames_total = _capture->get(CV_CAP_PROP_FRAME_COUNT);
 
     int image_type = QMessageBox::warning(this, tr("Image Format"),
@@ -242,6 +239,9 @@ void QOpenGL_LFViewer::open_video(QString filename)
 
     // reset to position 0
     _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
+
+    resize(625, 433);
+    // Retrieve fps from the video. If not available, default will be 25
 
     //start_video();
     myTimer.singleShot(200,SLOT(_tick()));
@@ -290,7 +290,7 @@ void QOpenGL_LFViewer::_tick()
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[index]);
 
         // copy pixels from PBO to texture object
-        // Use offset instead of ponter.
+        // Use offset instead of pointer.
         if (texture_is_raw){
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texture.cols, texture.rows,
                         GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, 0);
@@ -325,10 +325,9 @@ void QOpenGL_LFViewer::_tick()
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
         cv::Mat frame;
-        _capture->read(frame);
+        _capture->read(frame); // reads always three channels
 
         if (texture_is_raw){
-
             int from_to[] = { 0,0 };
             cv::mixChannels( &frame, 1, &pretexture, 1, from_to,1 );
             cv::flip(pretexture, texture, 0);
@@ -449,15 +448,11 @@ void QOpenGL_LFViewer::initializeGL(){
 
     // FRAMEBUFFER
 
-    /*fbo = new QOpenGLFramebufferObject(texture.width(), texture.height(),
-                        QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, GL_RGB8);*/
-
     framebuffer = 0;
     glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
     glEnable(GL_TEXTURE_2D);
-    //glShadeModel(GL_FLAT);                      // shading mathod: GL_SMOOTH or GL_FLAT
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);      // 4-byte pixel alignment
     // The texture we're going to render to
     renderedTexture_id;
@@ -519,9 +514,6 @@ void QOpenGL_LFViewer::initializeGL(){
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST); // scale linearly when image bigger than texture
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST); // scale linearly when image smalled than texture
 
-    //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-
     if (texture_is_raw)
         _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, meta_infos.width,
                     meta_infos.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, ((is_video) ? NULL : texture.data));
@@ -553,17 +545,6 @@ void QOpenGL_LFViewer::initializeGL(){
     focusprogram->enableAttributeArray(PROGRAM_TEXCOORD_ATTRIBUTE);
     focusprogram->setAttributeBuffer(PROGRAM_VERTEX_ATTRIBUTE, GL_FLOAT, 0, 3, 5 * sizeof(GLfloat));
     focusprogram->setAttributeBuffer(PROGRAM_TEXCOORD_ATTRIBUTE, GL_FLOAT, 3 * sizeof(GLfloat), 2, 5 * sizeof(GLfloat));
-
-    // The framebuffer, which regroups 0, 1, or more textures, and 0 or 1 depth buffer.
-    //framebuffer;
-
-        //qDebug() << "render_id: " << fbo->texture();
-    //qDebug() << "programID: " << program->programId();
-    //qDebug() << "focusID: " << focusprogram->programId();
-    //qDebug() << "Error : " << glGetError();
-
-    // create 2 pixel buffer objects, you need to delete them when program exits.
-            // glBufferDataARB with NULL pointer reserves only memory space.
 
     fps_frames_elapsed = 0;
     fps_time_elapsed = 0;
