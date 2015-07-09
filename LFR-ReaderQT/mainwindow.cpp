@@ -149,6 +149,10 @@ void MainWindow::chooseVideoPlayer(){
     connect( display, SIGNAL(clicked()), opengl_movieplayer, SLOT(buttonDisplayClicked()) );
     focus_slider->setMaximum(250);
     focus_slider->setMinimum(-250);
+    QPushButton *start_pause = new QPushButton("Start/Pause");
+    connect( start_pause, SIGNAL(clicked()), opengl_movieplayer, SLOT(start_video()) );
+    QPushButton *stop = new QPushButton("Stop");
+    connect( stop, SIGNAL(clicked()), opengl_movieplayer, SLOT(stop_video()) );
     //QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
     //connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleSuperResolution(bool)) );
     //checkSuperResolution->setChecked(true);
@@ -161,6 +165,8 @@ void MainWindow::chooseVideoPlayer(){
     display_options_layout->addWidget(fps_display);
     display_options_layout->addWidget(demosaic_render);
     display_options_layout->addWidget(display);
+    display_options_layout->addWidget(start_pause);
+    display_options_layout->addWidget(stop);
     display_options_layout->addWidget(focus_slider);
     buttons_layout->addWidget(display_options,2,1);
 
@@ -251,6 +257,10 @@ void MainWindow::chooseVideoFromImageSequence(){
     connect( display, SIGNAL(clicked()), opengl_movieplayer, SLOT(buttonDisplayClicked()) );
     focus_slider->setMaximum(250);
     focus_slider->setMinimum(-250);
+    QPushButton *start_pause = new QPushButton("Start/Pause");
+    connect( start_pause, SIGNAL(clicked()), opengl_movieplayer, SLOT(start_video()) );
+    QPushButton *stop = new QPushButton("Stop");
+    connect( stop, SIGNAL(clicked()), opengl_movieplayer, SLOT(stop_video()) );
     //QCheckBox *checkSuperResolution = new QCheckBox("SuperResolution");
     //connect( checkSuperResolution, SIGNAL(toggled(bool)), opengl_movieplayer, SLOT(toggleSuperResolution(bool)) );
     //checkSuperResolution->setChecked(true);
@@ -263,6 +273,8 @@ void MainWindow::chooseVideoFromImageSequence(){
     display_options_layout->addWidget(fps_display);
     display_options_layout->addWidget(demosaic_render);
     display_options_layout->addWidget(display);
+    display_options_layout->addWidget(start_pause);
+    display_options_layout->addWidget(stop);
     display_options_layout->addWidget(focus_slider);
     buttons_layout->addWidget(display_options,2,1);
 

@@ -24,8 +24,8 @@ int demosaicking_mode = 1; // 0 - nearest neighbour, 1 - bilinear
 bool option_superresolution = true;
 uniform bool is_raw = true;
 
-varying mediump vec3 texc;
-layout(location = 0) out vec3 color;
+varying mediump vec4 texc;
+layout(location = 0) out vec4 color;
 
 vec4 computeColorAt(vec2 texel_pos){
     // get position of current pixel
@@ -182,9 +182,9 @@ void main(void)
     //return;
 
     if (view_mode == 0)
-        color = texture2D(lightfield,texc.st).rgb;
+        color = texture2D(lightfield,texc.st);
     else if(view_mode <= 2) // bayer & demosaic
-        color = computeColorAt(texc.st).rgb;
+        color = computeColorAt(texc.st);
 
     else if (view_mode > 2){
 
@@ -202,7 +202,7 @@ void main(void)
         st = floor(st + vec2(0.5f,0.5f)); // exact st position
 
         uv *= vec2(15,15) / lenslet_dim; //stretch uv coordinates from center
-        color = recalcPosAtSTUV(st, uv).rgb;
+        color = recalcPosAtSTUV(st, uv);
     }
     /*
     else if(view_mode > 2){

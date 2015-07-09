@@ -1,7 +1,7 @@
 attribute vec4 vertex;
-attribute vec3 texCoord;
+attribute vec4 texCoord;
 uniform mat4 matrix;
-varying vec3 texc;
+varying vec4 texc;
 
 void main(void)
 {

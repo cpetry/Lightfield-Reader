@@ -33,6 +33,7 @@ public slots:
 
 private:
     void stereoLikeTaxonomy();
+    void costAwareDepthMapEstimation();
     cv::Mat generateDepthMapFromDisparity(cv::Mat dis);
     void generateFromUVST(bool show_epi = false);
     std::pair<cv::Mat, cv::Mat> calculateDisparityFromEPI(cv::Mat epi, std::string result = "");

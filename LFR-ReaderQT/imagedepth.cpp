@@ -23,7 +23,8 @@ void ImageDepth::loadImage(){
 
 void ImageDepth::updateLabel(){
     QImage output;
-    stereoLikeTaxonomy();
+    //stereoLikeTaxonomy();
+    costAwareDepthMapEstimation();
     cv::normalize(output_img, output_img, 0, 1, CV_MINMAX, CV_32F);
     output = Mat2QImage(output_img);
     this->view->setPixmap(QPixmap::fromImage(output));
@@ -160,6 +161,167 @@ void ImageDepth::generateFromUVST(bool show_epi){
     //return Mat2QImage(phi_mat);
 }
 
+void ImageDepth::costAwareDepthMapEstimation(){
+    const int size_i = 15, size_j = 15;
+    int size_k = input_img.cols/size_i;
+    int size_l = input_img.rows/size_j;
+
+    cv::Mat img;
+    input_img.convertTo(img, CV_32FC3);
+    cv::cvtColor(img,img, cv::COLOR_BGR2RGB);
+
+    int N = 15; //??
+    int c_pix = 7; //??
+    double F_s = 1.3999e-6; // = F_t
+    double F_u = 2.0e-5; // = F_v
+    double c_Mx = -5.800524e-5;
+    double c_My = 1.160522e-5;
+    double c_mux = -7.32999324e-6;
+    double c_muy = 5.56864929e-6;
+    double d_mu = 3.6999e-5;
+    double d_M = 0.115591 - d_mu; // =! 0.115591 or focal length? 0.0115421534
+    double f_M = 0.011542910; // focal length
+    double D = 1; // we can choose
+    float H_abs_rel_data[9] = {1, N, -c_pix,
+                              0, 1, 0,
+                              0, 0, 1};
+    float H_abs_phi_datax[9] = {1.0/F_s, 0, -c_Mx/F_s,
+                              0, 1.0/F_u, -c_mux/F_u,
+                              0, 0, 1};
+    float H_abs_phi_datay[9] = {1.0/F_s, 0, -c_My/F_s,
+                              0, 1.0/F_u, -c_muy/F_u,
+                              0, 0, 1};
+    float H_phi_phi_data[9] = {1, 0, 0,
+                              -1.0/d_mu, 1.0/d_mu, 0,
+                              0, 0, 1};
+    float H_T_data[9] = {1, d_mu+d_M, 0,
+                          0, 1, 0,
+                          0, 0, 1};
+    float H_M_data[9] = {1, 0, 0,
+                          -1.0/f_M, 1, 0,
+                          0, 0, 1};
+    float H_phi_phi2_data[9] = {1, D, 0,
+                                0, 1, 0,
+                                0, 0, 1};
+    cv::Mat H_abs_rel = cv::Mat(3, 3, CV_32F,H_abs_rel_data);
+    cv::Mat H_abs_phi_x = cv::Mat(3, 3, CV_32F,H_abs_phi_datax);
+    //std::cout << "H_abs_phi_x: " << H_abs_phi_x << std::endl;
+    cv::Mat H_abs_phi_y = cv::Mat(3, 3, CV_32F,H_abs_phi_datay);
+    cv::Mat H_phi_phi = cv::Mat(3, 3, CV_32F,H_phi_phi_data);
+    //std::cout << "H_phi_phi: " << H_phi_phi << std::endl;
+    cv::Mat H_T = cv::Mat(3, 3, CV_32F,H_T_data);
+    //std::cout << "H_T: " << H_T << std::endl;
+    cv::Mat H_M = cv::Mat(3, 3, CV_32F,H_M_data);
+    //std::cout << "H_M: " << H_M << std::endl;
+    cv::Mat H_phi_phi2 = cv::Mat(3, 3, CV_32F,H_phi_phi2_data);
+    //std::cout << "H_phi_phi2: " << H_phi_phi2 << std::endl;
+
+
+    /*float Hx_data[9] = {-0.0006 ,  -0.0021 ,  0.0000,
+                        -0.0001 ,  -0.0018 ,  0.0000,
+                              0 ,        0 ,   1.0000};
+    float Hy_data[9] = {-0.0006 ,  -0.0021 ,  0.0039,
+                        -0.0001 ,  -0.0018 ,  0.0008,
+                              0 ,        0 ,   1.0000};*/
+    cv::Mat Hx = ((((H_phi_phi2 * H_M) * H_T) * H_phi_phi) * H_abs_phi_x) * H_abs_rel;
+    //cv::Mat Hx = H_phi_phi2.mul(H_M).mul(H_T).mul(H_phi_phi).mul(H_abs_phi_x).mul(H_abs_rel);
+    cv::Mat Hy = H_phi_phi2 * H_M * H_T * H_phi_phi * H_abs_phi_y * H_abs_rel;
+    //cv::Mat Hy = H_phi_phi2.mul(H_M).mul(H_T).mul(H_phi_phi).mul(H_abs_phi_y).mul(H_abs_rel);
+    //std::cout << "Hx: " << Hx << std::endl;
+    //std::cout << "Hy: " << Hy << std::endl;
+
+
+    // five dimensional H
+    float H_data[25] = { Hx.at<float>(0,0), 0, Hx.at<float>(0,1), 0, Hx.at<float>(0,2),
+                        0, Hy.at<float>(0,0), 0, Hy.at<float>(0,1), Hy.at<float>(0,2),
+                        Hx.at<float>(1,0), 0, Hx.at<float>(1,1), 0, Hx.at<float>(1,2),
+                        0, Hy.at<float>(1,0), 0, Hy.at<float>(1,1), Hy.at<float>(1,2),
+                        0,       0, 0,       0, 1};
+    cv::Mat H = cv::Mat(5, 5, CV_32F,H_data);
+    //std::cout << "H: " << H << std::endl;
+
+    // a = [R, G, B, SxR, SxG, SxB, SyR, SyG, SyB]
+    // Calculate image derivatives
+    cv::Mat dx(img.cols, img.rows, CV_32F);
+    cv::Mat dy(img.cols, img.rows, CV_32F);
+
+    //cv::img_gray;
+    //cv::cvtColor(img,img_gray, cv::COLOR_BGR2GRAY);
+    cv::Sobel(img, dx, CV_32F, 1, 0, sobel_k_size, sobel_scale, 0, cv::BORDER_DEFAULT);
+    cv::Sobel(img, dy, CV_32F, 0, 1, sobel_k_size, sobel_scale, 0, cv::BORDER_DEFAULT);
+
+    //C (t,s,d) = 1/n(S)* sum(|a(i_r,j_r,k,l) - a(i',j',k',l'|)
+    // k', l' have to be calculated with H
+    int i_r = 7;
+    int j_r = 7;
+    float size_d = 30;
+    int sizes[] = { size_l, size_k, size_d};
+    cv::Mat cost(3, sizes, CV_32FC1);
+
+    for(int l=0; l<size_l; l++){
+        for(int k=0; k<size_k; k++){
+           cv::Vec3f c = img.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
+           cv::Vec3f c_dx = dx.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
+           cv::Vec3f c_dy = dy.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
+           for(int d=0; d<size_d; d++){
+
+                float sum = 0;
+                int s_count = 0;
+                for(int j=0; j<size_j; j++){
+                    for(int i=0; i<size_i; i++){
+                        //a(u,v,t,s)
+                        float df = d*1.0f;
+                        df = d*1.0f/size_d;
+                        float i_f = i-size_i/2;
+                        float j_f = j-size_j/2;
+                        float li = l;
+                        float ki = k;
+                        float zx = H.at<float>(0,0)*i_f + H.at<float>(0,4) + df*H.at<float>(0,2)*i_f + df*H.at<float>(2,4);
+                        float nx = H.at<float>(0,2) + df*H.at<float>(2,2);
+                        //int k_ = (ki/size_k-zx) / nx;
+                        int k_ = ki-zx / nx;
+                        float zy = H.at<float>(1,1)*j_f + H.at<float>(1,4) + df*H.at<float>(3,1)*j_f + df*H.at<float>(3,4);
+                        float ny = H.at<float>(1,3) + df*H.at<float>(3,3);
+                        //int l_ = (li/size_l-zy) / ny;
+                        int l_ = li-zy / ny;
+                        if (k_ < 0 || l_< 0 || k_ >= size_k || l_ >= size_l)
+                            continue;
+                        s_count++;
+                        cv::Vec3f c_ = img.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                        cv::Vec3f cdx_ = dx.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                        cv::Vec3f cdy_ = dy.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                        sum += cv::norm(c - c_);
+                        sum += cv::norm(c_dx - cdx_);
+                        sum += cv::norm(c_dy - cdy_);
+
+                    }
+                }
+                cost.at<float>(l, k, d) = sum / s_count;
+           }
+       }
+    }
+
+
+    cv::Mat cost_depth( size_l, size_k, CV_32FC1);
+    for (int l=0; l < size_l; l++)
+    for (int k=0; k < size_k; k++){
+        float min = 99999999;
+        int min_pos = 0;
+        for( int d=0; d < size_d; d++){
+            float v1 = cost.at<float>(l, k, d);
+            if (v1 <= min){
+                min = v1;
+                min_pos = d;
+            }
+        }
+        cost_depth.at<float>(l, k) = min_pos;
+    }
+    //output_img = disparity;
+    //output_img = generateDepthMapFromDisparity(cost_depth);
+    output_img = cost_depth;
+
+}
+
 void ImageDepth::stereoLikeTaxonomy(){
     const int size_u = 15, size_v = 15;
     int size_s = input_img.cols/size_u;
@@ -176,7 +338,7 @@ void ImageDepth::stereoLikeTaxonomy(){
     //foreach d_u sum_c(sum_sd(estimator(u, v, s-u*d_u, t)*I - p(u, v, s-u*d_u, t))
 
     float size_d = 20;
-    float f = 0.0115f;
+    float f = 0.115f;
     int sizes[] = { size_t, size_s, size_u};
     cv::Mat depth(3, sizes, CV_32FC1);
 
@@ -188,15 +350,15 @@ void ImageDepth::stereoLikeTaxonomy(){
 
         cv::Mat cost_vol(3, sizes, CV_32FC3);
         for(int u=0; u < size_u; u++){
-            u_c+=1;
 
             //cv::Vec3f sum_sd = 0;
             for (int t=0; t < size_t; t++){
             for (int s=0; s < size_s; s++){
-                int p_s = s - u_c*d;
+                int p_s = s - u_c*d*f;
                 cost_vol.at<cv::Vec3f>(t, s, u) += img.at<cv::Vec3f>(t + v*size_t, p_s + u*size_s);
             }
             }
+            u_c+=1;
 
         }
 
@@ -222,10 +384,12 @@ void ImageDepth::stereoLikeTaxonomy(){
                 variation.at<float>(t,s) = sum[0] + sum[1] + sum[2];
             }
 
-        di+=1;
+        cv::GaussianBlur(variation, variation, cv::Size(gauss_k_size,gauss_k_size), gauss_sigma);
+        // cost aggregation
         for (int t=0; t < size_t; t++)
             for (int s=0; s < size_s; s++)
                 depth.at<float>(t,s,di) = variation.at<float>(t,s);
+        di+=1;
     }
 
             /*
@@ -315,21 +479,25 @@ void ImageDepth::stereoLikeTaxonomy(){
     for (int t=0; t < size_t; t++)
     for (int s=0; s < size_s; s++){
         float min = 99999999;
+        int min_pos = 0;
         for( int d=0; d < size_d; d++){
             float v1 = depth.at<float>(t, s, d);
             //float v2 = cost_voly.at<float>(t, s, d_u);
             //min = std::min(std::min(v1,v2), min);
-            min = std::min(v1, min);
+            if (v1 <= min){
+                min = v1;
+                min_pos = d;
+            }
         }
-        disparity.at<float>(t, s) = min;
+        disparity.at<float>(t, s) = min_pos * 1.0f / size_d;
     }
-
+    //output_img = disparity;
     output_img = generateDepthMapFromDisparity(disparity);
 }
 
 cv::Mat ImageDepth::generateDepthMapFromDisparity(cv::Mat dis){
     double f = 0.0115421 / (1.399*pow(10,-6)); // focal length (in pixel)
-    float B = 0.002f; // baseline (distance of two lenses, in meter)
+    float B = 0.00002f; // baseline (distance of two lenses, in meter)
     cv::Mat Z = dis.clone();
     for (int t=0; t < dis.rows; t++)
         for (int s=0; s < dis.cols; s++){

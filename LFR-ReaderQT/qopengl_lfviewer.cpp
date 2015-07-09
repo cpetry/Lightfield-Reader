@@ -98,28 +98,48 @@ void QOpenGL_LFViewer::setClearColor(const QColor &color)
 
 void QOpenGL_LFViewer::open_image_sequence(QStringList filenames){
     texture = cv::imread(filenames.at(0).toStdString(), 1); //loads color if it is available
-    cv::cvtColor(texture, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
-    pretexture = cv::Mat::Mat(cv::Size(texture.cols, texture.rows), texture.channels());
-    cv::flip(texture, texture, 0);
+    int channels = (QImage(filenames.at(0)).format() == QImage::Format_Indexed8) ? 1 : 3;
+    texture_is_raw = (channels == 1);
+
+    // read in first texture to get some info
+    if (texture_is_raw){
+        int from_to[] = { 0,0 };
+        pretexture = cv::Mat::Mat(cv::Size(texture.cols, texture.rows), 0);
+        cv::mixChannels( &texture, 1, &pretexture, 1, from_to, 1);
+        cv::flip(pretexture, pretexture, 0);
+    }
+    else{
+        cv::cvtColor(texture, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
+        pretexture = cv::Mat::Mat(cv::Size(texture.cols, texture.rows), texture.channels());
+        cv::flip(texture, texture, 0);
+    }
     this->meta_infos.width = texture.cols;
     this->meta_infos.height = texture.rows;
-    texture_is_raw = (texture.channels() == 1);
+
+    // read in every other texture!
     for(int i=0; i< filenames.length(); i++){
-        //QImage image = QImage(filenames[i]);
-        //texture_list.push_back(image.mirrored());
         cv::Mat img = cv::imread(filenames[i].toStdString(), 1);//loads color if it is available
-        cv::cvtColor(img, img, CV_BGR2RGBA); // has to be RGBA ... -.-
-        cv::flip(img, img, 0);
-        texture_list.push_back(img);
+        if (texture_is_raw){
+            int from_to[] = { 0,0 };
+            cv::Mat channel = cv::Mat::Mat(cv::Size(img.cols, img.rows), 0);
+            cv::mixChannels( &img, 1, &channel, 1, from_to, 1);
+            cv::flip(channel, channel, 0);
+            texture_list.push_back(channel);
+        }
+        else{
+            cv::cvtColor(img, img, CV_BGR2RGBA); // has to be RGBA ... -.-
+            cv::flip(img, img, 0);
+            texture_list.push_back(img);
+        }
     }
     frames_total = filenames.length();
     opengl_option_is_demosaicked = true;
 
-    int fps = 1;
-    tick_ms = 1000/fps;
+    //int fps = 1;
+    //tick_ms = 1000/fps;
 
     //start_video();
-    myTimer.singleShot(200,SLOT(_tick()));
+    //myTimer.singleShot(200,SLOT(_tick()));
 }
 
 void QOpenGL_LFViewer::open_video(QString filename)
@@ -244,12 +264,13 @@ void QOpenGL_LFViewer::open_video(QString filename)
     // Retrieve fps from the video. If not available, default will be 25
 
     //start_video();
-    myTimer.singleShot(200,SLOT(_tick()));
 }
 
 void QOpenGL_LFViewer::start_video(){
-    myTimer.start();
-    QObject::connect(&myTimer, SIGNAL(timeout()), this, SLOT(_tick()));
+    video_playing = !video_playing;
+    if (video_playing)
+        myTimer.singleShot(200,SLOT(_tick()));
+    //QObject::connect(&myTimer, SIGNAL(timeout()), this, SLOT(_tick()));
 }
 
 void QOpenGL_LFViewer::_tick()
@@ -275,15 +296,10 @@ void QOpenGL_LFViewer::_tick()
             }
         }
 
-
-
-
         // start to copy from PBO to texture object ///////
         // Pixel Buffer Object indices
         index = (index + 1) % 2;
         int nextIndex = (index + 1) % 2;
-        //int nextIndex = 0;
-        //index = nextIndex = 0;
 
         // bind the texture and PBO
         glBindTexture(GL_TEXTURE_2D, texture_id);
@@ -319,7 +335,6 @@ void QOpenGL_LFViewer::_tick()
             _func330->glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER); // release pointer to mapping buffer
         }
 
-
         // it is good idea to release PBOs with ID 0 after use.
         // Once bound with 0, all pixel operations behave normal ways.
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -342,13 +357,10 @@ void QOpenGL_LFViewer::_tick()
         if (frame_count >= frames_total)
             frame_count = 0;
 
-        texture_list[frame_count].copyTo(texture);
         // start to copy from PBO to texture object ///////
         // Pixel Buffer Object indices
         index = (index + 1) % 2;
         int nextIndex = (index + 1) % 2;
-        //int nextIndex = 0;
-        //index = nextIndex = 0;
 
         // bind the texture and PBO
         glBindTexture(GL_TEXTURE_2D, texture_id);
@@ -387,11 +399,7 @@ void QOpenGL_LFViewer::_tick()
         // Once bound with 0, all pixel operations behave normal ways.
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-        /*glBindTexture( GL_TEXTURE_2D, texture_id);
-        _func330->glTexSubImage2D(GL_TEXTURE_2D, 0, GL_RGBA, meta_infos.width,
-                meta_infos.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_list[frame_count].data);
-                //meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].bits());*/
-        //}
+        texture_list[frame_count].copyTo(texture);
     }
 
     // Trigger paint event to redraw the window
@@ -399,10 +407,12 @@ void QOpenGL_LFViewer::_tick()
     frame_count++;
 }
 
-void QOpenGL_LFViewer::close_video()
+void QOpenGL_LFViewer::stop_video()
 {
-    qDebug() << "cvWindow::_close";
-    emit closed();
+    video_playing = false;
+    // reset to position 0
+    _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
+
 }
 
 void QOpenGL_LFViewer::initializeGL(){
@@ -459,8 +469,8 @@ void QOpenGL_LFViewer::initializeGL(){
     glGenTextures(1, &renderedTexture_id);
     glBindTexture(GL_TEXTURE_2D, renderedTexture_id);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, meta_infos.width,
-                 meta_infos.height, 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, meta_infos.width,
+                 meta_infos.height, 0,GL_RGBA, GL_UNSIGNED_BYTE, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -608,7 +618,7 @@ void QOpenGL_LFViewer::paintGL(){
         fps_time_elapsed = 0;
         fps_frames_elapsed = 0;
     }
-    if (is_video){
+    if (is_video && video_playing){
         _tick();
     }
     else
@@ -704,7 +714,7 @@ void QOpenGL_LFViewer::setOverlap(double o){
 
 
 void QOpenGL_LFViewer::focus_changed(int value){
-    focus = value / 100.0f;
+    focus = value / 100.0f / 2;
 
     if (_capture == NULL || !_capture->isOpened())
         update();

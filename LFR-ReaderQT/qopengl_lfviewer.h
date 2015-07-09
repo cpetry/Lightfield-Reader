@@ -60,6 +60,7 @@ public slots:
     void saveRaw();
 
     void start_video();
+    void stop_video();
 
 protected:
     void initializeGL() Q_DECL_OVERRIDE;
@@ -81,7 +82,6 @@ private slots:
 private:
     void open_video(QString filename);
     void open_image_sequence(QStringList filenames);
-    void close_video();
     void makeObject();
     void restructureImageToUVST();
     cv::VideoCapture* _capture = NULL;
@@ -131,6 +131,7 @@ private:
     bool opengl_option_display_mode = 1;
     bool texture_is_raw = false;
     bool is_video = false, is_imagelist = false;
+    bool video_playing = false;
 
 signals:
     void closed();
