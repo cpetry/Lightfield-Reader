@@ -734,6 +734,48 @@ void MainWindow::chooseGenerate_DepthMap(){
     connect(load, SIGNAL(clicked()), id, SLOT(loadImage()));
     buttons_layout->addWidget(load,0,1);
 
+    QDoubleSpinBox* threshold = new QDoubleSpinBox();
+    threshold->setValue(10.0);
+    threshold->setMaximum(100.0);
+    connect(threshold, SIGNAL(valueChanged(double)), id, SLOT(setFocusThreshold(double)));
+    buttons_layout->addWidget(threshold,1,2);
+
+    QPushButton* calc_cons = new QPushButton("Calculate Consistency Volume");
+    connect(calc_cons, SIGNAL(clicked()), id, SLOT(calcConsistencyVolume()));
+    buttons_layout->addWidget(calc_cons,2,1);
+
+    QPushButton* calc_focus = new QPushButton("Calculate Focus Volume");
+    connect(calc_focus, SIGNAL(clicked()), id, SLOT(calcFocusVolume()));
+    buttons_layout->addWidget(calc_focus,2,2);
+
+
+    QCheckBox* check_consistency = new QCheckBox("Consistency Cue");
+    check_consistency->setChecked(true);
+    connect(check_consistency, SIGNAL(clicked(bool)), id, SLOT(setConsistency(bool)));
+    buttons_layout->addWidget(check_consistency,3,1);
+    QCheckBox* check_focus = new QCheckBox("Focus Cue");
+    check_focus->setChecked(true);
+    connect(check_focus, SIGNAL(clicked(bool)), id, SLOT(setFocusCue(bool)));
+    buttons_layout->addWidget(check_focus,3,2);
+    QCheckBox* check_filter_focus_sml_0 = new QCheckBox("filter Focus SML 0");
+    connect(check_filter_focus_sml_0, SIGNAL(clicked(bool)), id, SLOT(setFilterFocusSml0(bool)));
+    check_filter_focus_sml_0->setChecked(true);
+    buttons_layout->addWidget(check_filter_focus_sml_0,4,1);
+    QCheckBox* check_filter_focus_bound = new QCheckBox("filter Focus Bound");
+    check_filter_focus_bound->setChecked(true);
+    connect(check_filter_focus_bound, SIGNAL(clicked(bool)), id, SLOT(setFilterFocusBound(bool)));
+    buttons_layout->addWidget(check_filter_focus_bound,4,2);
+    QCheckBox* check_filter_cons_variance = new QCheckBox("filter Cons Variance");
+    check_filter_cons_variance->setChecked(true);
+    connect(check_filter_cons_variance, SIGNAL(clicked(bool)), id, SLOT(setFilterConsVariance(bool)));
+    buttons_layout->addWidget(check_filter_cons_variance,5,1);
+    QDoubleSpinBox* max_variance = new QDoubleSpinBox();
+    max_variance->setValue(10.0);
+    max_variance->setMaximum(1000.0);
+    connect(max_variance, SIGNAL(valueChanged(double)), id, SLOT(setMaxVariance(double)));
+    buttons_layout->addWidget(max_variance,5,2);
+
+    /*
     QComboBox* cb = new QComboBox(this);
     cb->addItem("input");
     cb->addItem("sobel");
@@ -743,7 +785,7 @@ void MainWindow::chooseGenerate_DepthMap(){
     cb->addItem("epi_uvst");
     cb->addItem("depthmap_uvst");
     connect(cb, SIGNAL(currentIndexChanged(QString)), id, SLOT(setViewMode(QString)));
-    buttons_layout->addWidget(cb,1,1);
+    buttons_layout->addWidget(cb,2,1);
 
     QDoubleSpinBox* sobel_scale = new QDoubleSpinBox();
     sobel_scale->setValue(2.0);
@@ -764,11 +806,11 @@ void MainWindow::chooseGenerate_DepthMap(){
     connect(gauss_sigma, SIGNAL(valueChanged(double)), id, SLOT(setGaussSigma(double)));
     connect(gauss_kernel, SIGNAL(valueChanged(int)), id, SLOT(setGaussKernel(int)));
 
-    buttons_layout->addWidget(sobel_scale,2,1);
-    buttons_layout->addWidget(sobel_k_size,2,2);
-    buttons_layout->addWidget(gauss_sigma,3,1);
-    buttons_layout->addWidget(gauss_kernel,3,2);
-
+    buttons_layout->addWidget(sobel_scale,3,1);
+    buttons_layout->addWidget(sobel_k_size,3,2);
+    buttons_layout->addWidget(gauss_sigma,4,1);
+    buttons_layout->addWidget(gauss_kernel,4,2);
+    */
     view_layout->addWidget(buttons_widget);
 
 

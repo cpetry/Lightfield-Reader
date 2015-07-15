@@ -20,13 +20,26 @@ void ImageDepth::loadImage(){
     output_img = input_img;
     setViewMode("input");
 }
+void ImageDepth::calcFocusVolume(){
+    const int size_u = 15, size_v = 15;
+    const int size_d = 10;
+    focusCost = costAware_createFocusVolume(size_u, size_v, size_d);
+    updateLabel();
+}
+
+void ImageDepth::calcConsistencyVolume(){
+    const int size_u = 15, size_v = 15;
+    const int size_d = 10;
+    consistancyCost = costAware_createCostVolume(size_u, size_v, size_d);
+    updateLabel();
+}
 
 void ImageDepth::updateLabel(){
     QImage output;
     //stereoLikeTaxonomy();
     costAwareDepthMapEstimation();
     cv::normalize(output_img, output_img, 0, 1, CV_MINMAX, CV_32F);
-    output = Mat2QImage(output_img);
+    output = EveryMat2QImageCol(output_img);
     this->view->setPixmap(QPixmap::fromImage(output));
     return;
 
@@ -161,8 +174,7 @@ void ImageDepth::generateFromUVST(bool show_epi){
     //return Mat2QImage(phi_mat);
 }
 
-void ImageDepth::costAwareDepthMapEstimation(){
-    const int size_i = 15, size_j = 15;
+cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_j, const int size_d){
     int size_k = input_img.cols/size_i;
     int size_l = input_img.rows/size_j;
 
@@ -237,7 +249,7 @@ void ImageDepth::costAwareDepthMapEstimation(){
                         Hx.at<float>(1,0), 0, Hx.at<float>(1,1), 0, Hx.at<float>(1,2),
                         0, Hy.at<float>(1,0), 0, Hy.at<float>(1,1), Hy.at<float>(1,2),
                         0,       0, 0,       0, 1};
-    cv::Mat H = cv::Mat(5, 5, CV_32F,H_data);
+    cv::Mat H = cv::Mat(5, 5, CV_32F, H_data);
     //std::cout << "H: " << H << std::endl;
 
     // a = [R, G, B, SxR, SxG, SxB, SyR, SyG, SyB]
@@ -254,72 +266,199 @@ void ImageDepth::costAwareDepthMapEstimation(){
     // k', l' have to be calculated with H
     int i_r = 7;
     int j_r = 7;
-    float size_d = 30;
     int sizes[] = { size_l, size_k, size_d};
     cv::Mat cost(3, sizes, CV_32FC1);
 
-    for(int l=0; l<size_l; l++){
-        for(int k=0; k<size_k; k++){
-           cv::Vec3f c = img.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
-           cv::Vec3f c_dx = dx.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
-           cv::Vec3f c_dy = dy.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
-           for(int d=0; d<size_d; d++){
+    for(int l=0; l<size_l; l++)
+    for(int k=0; k<size_k; k++){
+        cv::Vec3f c = img.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
+        cv::Vec3f c_dx = dx.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
+        cv::Vec3f c_dy = dy.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
+        for(int d=0; d<size_d; d++){
 
-                float sum = 0;
-                int s_count = 0;
-                for(int j=0; j<size_j; j++){
-                    for(int i=0; i<size_i; i++){
-                        //a(u,v,t,s)
-                        float df = d*1.0f;
-                        df = d*1.0f/size_d;
-                        float i_f = i-size_i/2;
-                        float j_f = j-size_j/2;
-                        float li = l;
-                        float ki = k;
-                        float zx = H.at<float>(0,0)*i_f + H.at<float>(0,4) + df*H.at<float>(0,2)*i_f + df*H.at<float>(2,4);
-                        float nx = H.at<float>(0,2) + df*H.at<float>(2,2);
-                        //int k_ = (ki/size_k-zx) / nx;
-                        int k_ = ki-zx / nx;
-                        float zy = H.at<float>(1,1)*j_f + H.at<float>(1,4) + df*H.at<float>(3,1)*j_f + df*H.at<float>(3,4);
-                        float ny = H.at<float>(1,3) + df*H.at<float>(3,3);
-                        //int l_ = (li/size_l-zy) / ny;
-                        int l_ = li-zy / ny;
-                        if (k_ < 0 || l_< 0 || k_ >= size_k || l_ >= size_l)
-                            continue;
-                        s_count++;
-                        cv::Vec3f c_ = img.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
-                        cv::Vec3f cdx_ = dx.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
-                        cv::Vec3f cdy_ = dy.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
-                        sum += cv::norm(c - c_);
-                        sum += cv::norm(c_dx - cdx_);
-                        sum += cv::norm(c_dy - cdy_);
-
-                    }
-                }
-                cost.at<float>(l, k, d) = sum / s_count;
-           }
-       }
+            float sum = 0;
+            int s_count = 0;
+            for(int j=0; j<size_j; j++)
+            for(int i=0; i<size_i; i++){
+                //a(u,v,t,s)
+                float df = d*1.0f;
+                df = d*1.0f/size_d;
+                float i_f = i-size_i/2;
+                float j_f = j-size_j/2;
+                float li = l;
+                float ki = k;
+                float zx = H.at<float>(0,0)*i_f + H.at<float>(0,4) + df*H.at<float>(0,2)*i_f + df*H.at<float>(2,4);
+                float nx = H.at<float>(0,2) + df*H.at<float>(2,2);
+                //int k_ = (ki/size_k-zx) / nx;
+                int k_ = ki-zx / nx;
+                float zy = H.at<float>(1,1)*j_f + H.at<float>(1,4) + df*H.at<float>(3,1)*j_f + df*H.at<float>(3,4);
+                float ny = H.at<float>(1,3) + df*H.at<float>(3,3);
+                //int l_ = (li/size_l-zy) / ny;
+                int l_ = li-zy / ny;
+                if (k_ < 0 || l_< 0 || k_ >= size_k || l_ >= size_l)
+                    continue;
+                s_count++;
+                cv::Vec3f c_ = img.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                cv::Vec3f cdx_ = dx.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                cv::Vec3f cdy_ = dy.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                sum += cv::norm(c - c_);
+                sum += cv::norm(c_dx - cdx_);
+                sum += cv::norm(c_dy - cdy_);
+            }
+            cost.at<float>(l, k, d) = sum / s_count;
+        }
     }
 
+    return cost;
+}
 
-    cv::Mat cost_depth( size_l, size_k, CV_32FC1);
-    for (int l=0; l < size_l; l++)
-    for (int k=0; k < size_k; k++){
-        float min = 99999999;
-        int min_pos = 0;
+cv::Mat ImageDepth::createFocusedImage(const cv::Mat image, const int size_u, const int size_v, const float shift){
+    int size_s = image.cols/size_u;
+    int size_t = image.rows/size_v;
+    cv::Mat focused_img = cv::Mat::zeros(size_t, size_s, CV_32FC3);
+    cv::Mat shifted_img = cv::Mat::zeros(size_t, size_s, CV_32FC3);
+    for (int v=0; v<size_v; v++)
+    for (int u=0; u<size_u; u++){
+        // (src1 * alpha + src2 * beta + gamma)
+        int x = u * size_s + static_cast<int>(shift*(u-size_u/2)+0.5f);
+        int y = v * size_t + static_cast<int>(shift*(v-size_v/2)+0.5f);
+        int width  = (x + size_s >= image.cols-1) ? image.cols - x -1 : size_s;
+        int height = (y + size_t >= image.rows-1) ? image.rows - y -1 : size_t;
+        x = x < 0 ? 0 : x;
+        y = y < 0 ? 0 : y;
+        image(cv::Rect(x, y, width, height)).copyTo(shifted_img(cv::Rect(0, 0, width, height)));
+        cv::addWeighted (shifted_img, 1.0/(size_v*size_u), focused_img, 1,0, focused_img);
+    }
+    return focused_img;
+}
+
+cv::Mat ImageDepth::costAware_createFocusVolume(const int size_u, const int size_v, const int size_d){
+    cv::Mat input_f;
+    input_img.convertTo(input_f, CV_32FC3);
+    int step = 1;
+    int size_s = input_f.cols/size_u;
+    int size_t = input_f.rows/size_v;
+    int sizes[] = { size_t, size_s, size_d};
+    cv::Mat cost(3, sizes, CV_32FC1);
+
+    for (int d=0; d < size_d; d++){
+        float d_min = -0.5;
+        float d_max = 0.8;
+        float d_range = d_max - d_min;
+        float d_value = d_min + (d*1.0f/(size_d-1)) * d_range; // -0.5 - 0.8
+        cv::Mat focused_img = createFocusedImage(input_f, size_u, size_v, d_value);
+        //cv::Mat focused_img = createFocusedImage(input_f, size_u, size_v, 0);
+        //cv::Mat testCost(focused_img.rows, focused_img.cols, CV_32F);
+        cv::Mat ML(focused_img.rows, focused_img.cols, CV_32F);
+
+        // create Modified Laplacian
+        for(int y=0; y < focused_img.rows; y++)
+        for(int x=0; x < focused_img.cols; x++){
+            cv::Vec3f xy2 = focused_img.at<cv::Vec3f>(y,x) * 2;
+            ML.at<float>(y,x) = cv::norm(xy2 -
+                                focused_img.at<cv::Vec3f>(y, std::max(x - step,0)) -
+                                focused_img.at<cv::Vec3f>(y, std::min(x + step,focused_img.cols-1))) +
+                                cv::norm(xy2 -
+                                focused_img.at<cv::Vec3f>(std::max(y - step,0),x) -
+                                focused_img.at<cv::Vec3f>(std::min(y + step,focused_img.rows-1),x));
+        }
+
+        // sum up Modified Laplacian
+        int R = 1; // Radius
+        for(int y=0; y < focused_img.rows; y++)
+        for(int x=0; x < focused_img.cols; x++){
+            float sum=0;
+            for(int ny=-R; ny <= R; ny++)
+            for(int nx=-R; nx <= R; nx++){
+                float ML_value = ML.at<float>(std::min(std::max(0,y+ny),focused_img.rows-1),
+                                              std::min(std::max(0,x+nx),focused_img.cols-1));
+                sum += (ML_value >= focus_threshold) ? ML_value : 0;
+            }
+            cost.at<float>(y, x, d) = sum;
+        }
+
+    }
+    return cost;
+}
+
+void ImageDepth::costAwareDepthMapEstimation(){
+    const int size_u = 15, size_v = 15;
+    const int size_d = 10;
+    const int size_s = input_img.cols/size_u;
+    const int size_t = input_img.rows/size_v;
+
+    if (consistancyCost.empty())
+        calcConsistencyVolume();
+    if (focusCost.empty())
+        calcFocusVolume();
+
+    cv::Mat cost_depth( size_t, size_s, CV_32FC1);
+    for (int t=0; t < size_t; t++)
+    for (int s=0; s < size_s; s++){
+
+        float min_cons = 99999999;
+        int estimated_depth = 0;
+        float cons_depth_sum = 0;
+
+        float min_f = 9999, max_f = -9999;
+        int min_d = size_d, max_d = 0;
+        float avg_f = 0;
+
         for( int d=0; d < size_d; d++){
-            float v1 = cost.at<float>(l, k, d);
-            if (v1 <= min){
-                min = v1;
-                min_pos = d;
+
+            // get minimum consistancyCost
+            float v1 = consistancyCost.at<float>(t, s, d);
+            if (v1 <= min_cons){
+                min_cons = v1;
+                cons_depth_sum += v1;
+                estimated_depth = d;
+            }
+
+
+            // get minimum and maximum focusCost
+            float focus_cost = focusCost.at<float>(t,s,d);
+            avg_f += focus_cost;
+            if (focus_cost < min_f){
+                min_f = focus_cost;
+                min_d = d;
+            }
+            if (focus_cost > max_f){
+                max_f = focus_cost;
+                max_d = d;
             }
         }
-        cost_depth.at<float>(l, k) = min_pos;
-    }
-    //output_img = disparity;
-    //output_img = generateDepthMapFromDisparity(cost_depth);
-    output_img = cost_depth;
 
+
+        // calculate variance of consistency cost
+        float mean = cons_depth_sum / size_d;
+        float variance = 0;
+        for( int d=0; d < size_d; d++){
+            variance += std::pow(consistancyCost.at<float>(t, s, d) - mean,2);
+        }
+        variance *= (1.0f/size_d);
+
+        // average value of focus cue
+        avg_f /= size_d * 1.0f;
+
+        if (use_focuscue && (
+                (avg_f == 0 && use_filter_focus_sml_0)                   // first  case: SML are all 0
+            || ((estimated_depth > size_d - max_d) && use_filter_focus_bound))     // second case: estimated depth is not inside bounds
+            || (variance > max_variance*10 && use_filter_cons_variance)){// || estimated_depth > max_d)){
+            cost_depth.at<float>(t, s) = 0;
+            continue;
+        }
+        else{
+            if (use_consistency)
+                cost_depth.at<float>(t, s) = estimated_depth / 256.0f;
+            else if (use_focuscue){
+                cost_depth.at<float>(t, s) = size_d - max_d;
+            }
+        }
+
+
+
+    }
+    output_img = cost_depth;
 }
 
 void ImageDepth::stereoLikeTaxonomy(){

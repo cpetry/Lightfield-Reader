@@ -67,7 +67,8 @@ win32 {
                    $$(PCL_ROOT)/include/pcl-1.7 \
                    $$(PCL_ROOT)/3rdParty/Boost/include/boost-1_57 \
                    $$(PCL_ROOT)/3rdParty/Eigen/eigen3 \
-                   $$(PCL_ROOT)/3rdParty/VTK/include/vtk-6.2
+                   $$(PCL_ROOT)/3rdParty/VTK/include/vtk-6.2 \
+                   $$(AMDAPPSDKROOT)/include
 
     LIBS += -L$$(OPENCV_DIR)/x64/vc12/lib \
             -L$$(OPENCV_DIR)/x64/vc12/bin \
