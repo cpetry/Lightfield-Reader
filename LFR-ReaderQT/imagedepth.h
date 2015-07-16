@@ -44,8 +44,8 @@ public slots:
 
 private:
     void costAwareDepthMapEstimation();
-    cv::Mat costAware_createCostVolume(const int size_i, const int size_j, const int size_d);
-    cv::Mat costAware_createFocusVolume(const int size_u, const int size_v, const int size_d);
+    cv::Mat costAware_createCostVolume(const int size_i, const int size_j);
+    cv::Mat costAware_createFocusVolume(const int size_u, const int size_v);
     cv::Mat createFocusedImage(const cv::Mat image, const int size_u, const int size_v, const float shift);
     cv::Mat consistancyCost, focusCost;
 
@@ -127,6 +127,7 @@ private:
     bool use_consistency = true, use_focuscue = true,
     use_filter_focus_sml_0 = true, use_filter_focus_bound = true, use_filter_cons_variance = true;
     double focus_threshold;
+    const int size_d = 10;
 
     int sobel_k_size = 3;
     float sobel_scale = 1.0f;

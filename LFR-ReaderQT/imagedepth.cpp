@@ -22,15 +22,13 @@ void ImageDepth::loadImage(){
 }
 void ImageDepth::calcFocusVolume(){
     const int size_u = 15, size_v = 15;
-    const int size_d = 10;
-    focusCost = costAware_createFocusVolume(size_u, size_v, size_d);
+    focusCost = costAware_createFocusVolume(size_u, size_v);
     updateLabel();
 }
 
 void ImageDepth::calcConsistencyVolume(){
     const int size_u = 15, size_v = 15;
-    const int size_d = 10;
-    consistancyCost = costAware_createCostVolume(size_u, size_v, size_d);
+    consistancyCost = costAware_createCostVolume(size_u, size_v);
     updateLabel();
 }
 
@@ -174,7 +172,7 @@ void ImageDepth::generateFromUVST(bool show_epi){
     //return Mat2QImage(phi_mat);
 }
 
-cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_j, const int size_d){
+cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_j){
     int size_k = input_img.cols/size_i;
     int size_l = input_img.rows/size_j;
 
@@ -184,16 +182,16 @@ cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_
 
     int N = 15; //??
     int c_pix = 7; //??
-    double F_s = 1.3999e-6; // = F_t
-    double F_u = 2.0e-5; // = F_v
-    double c_Mx = -5.800524e-5;
-    double c_My = 1.160522e-5;
-    double c_mux = -7.32999324e-6;
-    double c_muy = 5.56864929e-6;
-    double d_mu = 3.6999e-5;
-    double d_M = 0.115591 - d_mu; // =! 0.115591 or focal length? 0.0115421534
-    double f_M = 0.011542910; // focal length
-    double D = 1; // we can choose
+    double F_s = 1.3999999999999999e-6; // = F_t
+    double F_u = 2.0000000000000002e-5; // = F_v
+    double c_Mx = -5.8005247410619631e-5;   // optical center offset in mm
+    double c_My = 1.1605224244704004e-5;    // optical center offset in mm
+    double c_mux = -7.3299932479858395e-6;  // mla offset in mm
+    double c_muy = 5.5686492919921878e-6;   // mla offset in mm
+    double d_mu = 3.6999999999999998e-5;    // mla offset in mm
+    double d_M = 0.11559105682373047 - d_mu; // exitPupilOffset - d_mu
+    double f_M = 0.011542153404246169; // focal length
+    double D = 1; // we can choose 1 , size_d ?!
     float H_abs_rel_data[9] = {1, N, -c_pix,
                               0, 1, 0,
                               0, 0, 1};
@@ -235,16 +233,18 @@ cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_
     float Hy_data[9] = {-0.0006 ,  -0.0021 ,  0.0039,
                         -0.0001 ,  -0.0018 ,  0.0008,
                               0 ,        0 ,   1.0000};*/
-    cv::Mat Hx = ((((H_phi_phi2 * H_M) * H_T) * H_phi_phi) * H_abs_phi_x) * H_abs_rel;
-    //cv::Mat Hx = H_phi_phi2.mul(H_M).mul(H_T).mul(H_phi_phi).mul(H_abs_phi_x).mul(H_abs_rel);
+    //cv::Mat Hx = H_abs_rel * H_abs_phi_x * H_phi_phi * H_T * H_M * H_phi_phi2;
+    cv::Mat Hx = H_phi_phi2 * H_M * H_T * H_phi_phi * H_abs_phi_x * H_abs_rel;
+    //cv::Mat Hy = H_abs_rel * H_abs_phi_y * H_phi_phi * H_T * H_M * H_phi_phi2;
     cv::Mat Hy = H_phi_phi2 * H_M * H_T * H_phi_phi * H_abs_phi_y * H_abs_rel;
-    //cv::Mat Hy = H_phi_phi2.mul(H_M).mul(H_T).mul(H_phi_phi).mul(H_abs_phi_y).mul(H_abs_rel);
-    //std::cout << "Hx: " << Hx << std::endl;
-    //std::cout << "Hy: " << Hy << std::endl;
+    std::cout << "Hx: " << Hx << std::endl;
+    std::cout << "Hy: " << Hy << std::endl;
+
+    //std::cout << "12: " << Hy.at<float>(1,2) << std::endl;
 
 
     // five dimensional H
-    float H_data[25] = { Hx.at<float>(0,0), 0, Hx.at<float>(0,1), 0, Hx.at<float>(0,2),
+    float H_data[25] = {Hx.at<float>(0,0), 0, Hx.at<float>(0,1), 0, Hx.at<float>(0,2),
                         0, Hy.at<float>(0,0), 0, Hy.at<float>(0,1), Hy.at<float>(0,2),
                         Hx.at<float>(1,0), 0, Hx.at<float>(1,1), 0, Hx.at<float>(1,2),
                         0, Hy.at<float>(1,0), 0, Hy.at<float>(1,1), Hy.at<float>(1,2),
@@ -254,13 +254,15 @@ cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_
 
     // a = [R, G, B, SxR, SxG, SxB, SyR, SyG, SyB]
     // Calculate image derivatives
-    cv::Mat dx(img.cols, img.rows, CV_32F);
-    cv::Mat dy(img.cols, img.rows, CV_32F);
+    cv::Mat dx;
+    cv::Mat dy;
 
     //cv::img_gray;
     //cv::cvtColor(img,img_gray, cv::COLOR_BGR2GRAY);
     cv::Sobel(img, dx, CV_32F, 1, 0, sobel_k_size, sobel_scale, 0, cv::BORDER_DEFAULT);
     cv::Sobel(img, dy, CV_32F, 0, 1, sobel_k_size, sobel_scale, 0, cv::BORDER_DEFAULT);
+
+
 
     //C (t,s,d) = 1/n(S)* sum(|a(i_r,j_r,k,l) - a(i',j',k',l'|)
     // k', l' have to be calculated with H
@@ -278,23 +280,38 @@ cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_
 
             float sum = 0;
             int s_count = 0;
-            for(int j=0; j<size_j; j++)
+            for(int j=0; j<size_j; j++){
             for(int i=0; i<size_i; i++){
                 //a(u,v,t,s)
-                float df = d*1.0f;
-                df = d*1.0f/size_d;
-                float i_f = i-size_i/2;
-                float j_f = j-size_j/2;
+                int i_f = i;
+                int j_f = j;
+                i_f -= size_i/2;
+                //i_f /= size_i;
+                j_f -= size_j/2;
+                //j_f *= 1.4;
+                //j_f /= size_j;
+                float df = d - 1.0f*size_d/2;
+                df = df*1.0f/size_d;
                 float li = l;
                 float ki = k;
                 float zx = H.at<float>(0,0)*i_f + H.at<float>(0,4) + df*H.at<float>(0,2)*i_f + df*H.at<float>(2,4);
                 float nx = H.at<float>(0,2) + df*H.at<float>(2,2);
-                //int k_ = (ki/size_k-zx) / nx;
-                int k_ = ki-zx / nx;
+                //int k_ = (ki-zx) / nx;
+                float diff_k = zx / nx;
+                int k_ = ki-diff_k;
                 float zy = H.at<float>(1,1)*j_f + H.at<float>(1,4) + df*H.at<float>(3,1)*j_f + df*H.at<float>(3,4);
                 float ny = H.at<float>(1,3) + df*H.at<float>(3,3);
-                //int l_ = (li/size_l-zy) / ny;
-                int l_ = li-zy / ny;
+                //int l_ = (li-zy) / ny;
+                float diff_l = zy / ny;
+                int l_ = li-diff_l;
+
+                /*float pix_i = i_f*0.0125/F_s;
+                float pix_j = j_f*0.0125/F_s;
+                float change_k = (df*0.1/f_M*(pix_i+(ki-size_k))); // i_f*1.495925
+                float change_l = (df*0.1/f_M*(pix_j+(li-size_l))); // j_f*1.495925+
+                int k_ = ki - change_k;
+                int l_ = li - change_l;*/
+
                 if (k_ < 0 || l_< 0 || k_ >= size_k || l_ >= size_l)
                     continue;
                 s_count++;
@@ -304,7 +321,7 @@ cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_
                 sum += cv::norm(c - c_);
                 sum += cv::norm(c_dx - cdx_);
                 sum += cv::norm(c_dy - cdy_);
-            }
+            }}
             cost.at<float>(l, k, d) = sum / s_count;
         }
     }
@@ -332,7 +349,7 @@ cv::Mat ImageDepth::createFocusedImage(const cv::Mat image, const int size_u, co
     return focused_img;
 }
 
-cv::Mat ImageDepth::costAware_createFocusVolume(const int size_u, const int size_v, const int size_d){
+cv::Mat ImageDepth::costAware_createFocusVolume(const int size_u, const int size_v){
     cv::Mat input_f;
     input_img.convertTo(input_f, CV_32FC3);
     int step = 1;
@@ -383,7 +400,6 @@ cv::Mat ImageDepth::costAware_createFocusVolume(const int size_u, const int size
 
 void ImageDepth::costAwareDepthMapEstimation(){
     const int size_u = 15, size_v = 15;
-    const int size_d = 10;
     const int size_s = input_img.cols/size_u;
     const int size_t = input_img.rows/size_v;
 
@@ -432,10 +448,12 @@ void ImageDepth::costAwareDepthMapEstimation(){
         // calculate variance of consistency cost
         float mean = cons_depth_sum / size_d;
         float variance = 0;
+        int range = 3;
         for( int d=0; d < size_d; d++){
+            if (d > estimated_depth - range && d < estimated_depth + range)
             variance += std::pow(consistancyCost.at<float>(t, s, d) - mean,2);
         }
-        variance *= (1.0f/size_d);
+        variance *= (1.0f/range*2);
 
         // average value of focus cue
         avg_f /= size_d * 1.0f;
@@ -449,7 +467,7 @@ void ImageDepth::costAwareDepthMapEstimation(){
         }
         else{
             if (use_consistency)
-                cost_depth.at<float>(t, s) = estimated_depth / 256.0f;
+                cost_depth.at<float>(t, s) = estimated_depth;
             else if (use_focuscue){
                 cost_depth.at<float>(t, s) = size_d - max_d;
             }
@@ -476,7 +494,6 @@ void ImageDepth::stereoLikeTaxonomy(){
     // sum_sd == sum_sad(absolute) || sum_sqd (square)
     //foreach d_u sum_c(sum_sd(estimator(u, v, s-u*d_u, t)*I - p(u, v, s-u*d_u, t))
 
-    float size_d = 20;
     float f = 0.115f;
     int sizes[] = { size_t, size_s, size_u};
     cv::Mat depth(3, sizes, CV_32FC1);
