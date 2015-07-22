@@ -391,13 +391,25 @@ void MainWindow::chooseLFImage(){
 
         QPushButton *gray = new QPushButton("Gray");
         QPushButton *bayer = new QPushButton("Bayer");
-        QPushButton *demosaic = new QPushButton("Demosaic");
         connect( gray, SIGNAL(clicked()), opengl_viewer, SLOT(buttonGrayClicked()) );
         connect( bayer, SIGNAL(clicked()), opengl_viewer, SLOT(buttonBayerClicked()) );
-        connect( demosaic, SIGNAL(clicked()), opengl_viewer, SLOT(buttonDemosaicClicked()) );
         buttons_layout->addWidget(gray,0,1);
         buttons_layout->addWidget(bayer,0,2);
-        buttons_layout->addWidget(demosaic,1,1);
+
+        QWidget* demosaic_options = new QWidget();
+        QVBoxLayout* demosaic_options_layout = new QVBoxLayout();
+        demosaic_options->setLayout(demosaic_options_layout);
+        QPushButton *demosaic = new QPushButton("Demosaic");
+        QSpinBox *spin_demosaic_mode = new QSpinBox();
+        spin_demosaic_mode->setValue(1);
+        spin_demosaic_mode->setMinimum(0);
+        spin_demosaic_mode->setMaximum(2);
+        demosaic_options_layout->addWidget(demosaic);
+        demosaic_options_layout->addWidget(spin_demosaic_mode);
+        connect( spin_demosaic_mode, SIGNAL(valueChanged(int)), opengl_viewer, SLOT(setDemosaicingMode(int)) );
+        connect( demosaic, SIGNAL(clicked()), opengl_viewer, SLOT(buttonDemosaicClicked()) );
+        buttons_layout->addWidget(demosaic_options,1,1);
+
 
         // Color correction Tab
         QWidget* colorcorrect_options = new QWidget();
@@ -433,12 +445,16 @@ void MainWindow::chooseLFImage(){
         QCheckBox *demosaic_render = new QCheckBox("Is demosaicked");
         connect( demosaic_render, SIGNAL(toggled(bool)), opengl_viewer, SLOT(renderDemosaic(bool)) );
         demosaic_render->setChecked(false);
+        QCheckBox *render = new QCheckBox("Render frames");
+        connect( render, SIGNAL(toggled(bool)), opengl_viewer, SLOT(renderFrames(bool)) );
+        demosaic_render->setChecked(false);
         QLabel *fps_display = new QLabel("Fps: ");
         connect( opengl_viewer, SIGNAL(refreshFPS(QString)), fps_display, SLOT(setText(QString)));
         display_options_layout->addWidget(fps_display);
         display_options_layout->addWidget(demosaic_render);
         display_options_layout->addWidget(display);
         display_options_layout->addWidget(uvmode);
+        display_options_layout->addWidget(render);
         buttons_layout->addWidget(display_options,2,1);
 
         QPushButton *saveImage = new QPushButton("SaveImage");
@@ -734,8 +750,13 @@ void MainWindow::chooseGenerate_DepthMap(){
     connect(load, SIGNAL(clicked()), id, SLOT(loadImage()));
     buttons_layout->addWidget(load,0,1);
 
+    QCheckBox* show_center_color_image = new QCheckBox("Show Center Image");
+    connect(show_center_color_image, SIGNAL(clicked(bool)), id, SLOT(setShowCenterColorImage(bool)));
+    buttons_layout->addWidget(show_center_color_image,1,1);
+
+
     QDoubleSpinBox* threshold = new QDoubleSpinBox();
-    threshold->setValue(10.0);
+    threshold->setValue(16.0);
     threshold->setMaximum(100.0);
     connect(threshold, SIGNAL(valueChanged(double)), id, SLOT(setFocusThreshold(double)));
     buttons_layout->addWidget(threshold,1,2);

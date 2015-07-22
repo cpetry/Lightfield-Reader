@@ -105,6 +105,16 @@ QImage LFP_Reader::readRawPixelData(std::basic_ifstream<unsigned char> &input, i
                 t1 = t1 + ((lsb & 0x30) >> 4) - 64;
                 t0 = t0 + ((lsb & 0xC0) >> 6) - 64;
 
+                // 01010101 01|011011 0101|1101 110110|11 11011011
+                /*uint16_t t0  = uint16_t(byte[0]);
+                uint16_t t1  = uint16_t(byte[1]);
+                uint16_t t2  = uint16_t(byte[2]);
+                uint16_t t3  = uint16_t(byte[3]);
+                uint16_t t4  = uint16_t(byte[4]);
+                t0 = (t0 >> 2)          + ((t1 & 0xC0) << 6) - 64;
+                t1 = ((t1 & 0x3F) >> 4) + ((t2 & 0xC0) << 4) - 64;
+                t2 = ((t2 & 0x0F) >> 6) + ((t3 & 0xFC) << 2) - 64;
+                t3 = ((t3 & 0x03) >> 8) + ((t4)) - 64;*/
 
                 // now everything is in 16bit representation
                 // -> to 8 bit

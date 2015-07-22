@@ -408,6 +408,7 @@ void ImageDepth::costAwareDepthMapEstimation(){
     if (focusCost.empty())
         calcFocusVolume();
 
+
     cv::Mat cost_depth( size_t, size_s, CV_32FC1);
     for (int t=0; t < size_t; t++)
     for (int s=0; s < size_s; s++){
@@ -448,7 +449,7 @@ void ImageDepth::costAwareDepthMapEstimation(){
         // calculate variance of consistency cost
         float mean = cons_depth_sum / size_d;
         float variance = 0;
-        int range = 3;
+        int range = 5;
         for( int d=0; d < size_d; d++){
             if (d > estimated_depth - range && d < estimated_depth + range)
             variance += std::pow(consistancyCost.at<float>(t, s, d) - mean,2);
@@ -458,25 +459,85 @@ void ImageDepth::costAwareDepthMapEstimation(){
         // average value of focus cue
         avg_f /= size_d * 1.0f;
 
-        if (use_focuscue && (
+        if (use_focuscue && use_consistency && (
                 (avg_f == 0 && use_filter_focus_sml_0)                   // first  case: SML are all 0
             || ((estimated_depth > size_d - max_d) && use_filter_focus_bound))     // second case: estimated depth is not inside bounds
             || (variance > max_variance*10 && use_filter_cons_variance)){// || estimated_depth > max_d)){
             cost_depth.at<float>(t, s) = 0;
             continue;
         }
-        else{
-            if (use_consistency)
-                cost_depth.at<float>(t, s) = estimated_depth;
-            else if (use_focuscue){
+        else if (use_focuscue && !use_consistency)
                 cost_depth.at<float>(t, s) = size_d - max_d;
-            }
+        else{
+            cost_depth.at<float>(t, s) = estimated_depth;
         }
-
-
-
     }
-    output_img = cost_depth;
+
+
+    cv::Mat input_f;
+    input_img.convertTo(input_f, CV_32FC3);
+    // colored center focused image
+    cv::Mat center_img = createFocusedImage(input_f, size_u, size_v, 0);
+
+    if (showCenterColorImage){
+        output_img = center_img.clone();
+        return;
+    }
+
+    // Depth propagation
+    cv::Mat final_depth( size_t, size_s, CV_32FC1);
+    //final_depth = cost_depth.clone();
+
+    if (use_focuscue && use_consistency){
+        int np = 2; // radius to search for better value
+        int pixels_empty = 1; // lets assume at least 1 pixel is incorrect
+
+        // fill all pixels!
+        while(pixels_empty != 0){
+            pixels_empty = 0;
+            for (int t=0; t < size_t; t++){
+            for (int s=0; s < size_s; s++){
+                float current_depth = cost_depth.at<float>(t, s);
+                // Fill in only empty depth values
+                if (current_depth == 0){
+                    float best_appr = 0;
+                    cv::Vec3f c_col = center_img.at<cv::Vec3f>(t,s);
+                    float col_dist_neighbour = 999999;
+
+                    // Search all neighbours for a good value
+                    for( int py=-np; py < np; py++){
+                    for( int px=-np; px < np; px++){
+                        if (py==0 && px == 0)
+                            continue;
+                        int y = t+py;
+                        int x = s+px;
+                        y = std::max(0, std::min(y, size_t));
+                        x = std::max(0, std::min(x, size_s));
+                        float neighbour = cost_depth.at<float>(y, x);
+
+                        // good value found -> search best value
+                        if (neighbour > 0){
+                            cv::Vec3f n_col = center_img.at<cv::Vec3f>(y, x);
+                            if (cv::norm(c_col - n_col) < col_dist_neighbour){
+                                col_dist_neighbour = cv::norm(c_col - n_col);
+                                best_appr += neighbour;
+                            }
+                        }
+                    }}
+                    if (best_appr == 0) // no good solution found? again next time!
+                        pixels_empty++;
+                    else
+                        final_depth.at<float>(t, s) = best_appr;
+                }
+                else
+                    final_depth.at<float>(t, s) = current_depth;
+            }}
+            cost_depth = final_depth.clone();
+        }
+        output_img = final_depth;
+    }
+    else
+        output_img = cost_depth;
 }
 
 void ImageDepth::stereoLikeTaxonomy(){

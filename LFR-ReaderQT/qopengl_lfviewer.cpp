@@ -621,7 +621,7 @@ void QOpenGL_LFViewer::paintGL(){
     if (is_video && video_playing){
         _tick();
     }
-    else
+    else if (opengl_option_render_frames)
         update();
 }
 
@@ -637,6 +637,7 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
     program->setUniformValue("option_gamma", opengl_option_gamma);
     program->setUniformValue("option_superresolution", opengl_option_superresolution);
     program->setUniformValue("option_display_mode", opengl_option_display_mode);
+    program->setUniformValue("demosaicking_mode", opengl_option_demosaicking_mode);
 
     program->setUniformValue("matrix", m); // m_result, m
     program->setUniformValue("lens_pos_view", lens_pos_view);

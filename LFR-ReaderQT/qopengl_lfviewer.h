@@ -56,6 +56,8 @@ public slots:
     void toggleGamma(bool v){ opengl_option_gamma = v;  update();}
     void toggleSuperResolution(bool v){ opengl_option_superresolution = v; update();}
     void renderDemosaic(bool v) {opengl_option_is_demosaicked = v; update();}
+    void setDemosaicingMode(int v) {opengl_option_demosaicking_mode = v; update();}
+    void renderFrames(bool v) {opengl_option_render_frames = v; update();}
     void saveImage();
     void saveRaw();
 
@@ -129,9 +131,11 @@ private:
     bool opengl_option_superresolution = true;
     bool opengl_option_is_demosaicked = false;
     bool opengl_option_display_mode = 1;
+    bool opengl_option_render_frames = false;
     bool texture_is_raw = false;
     bool is_video = false, is_imagelist = false;
     bool video_playing = false;
+    int opengl_option_demosaicking_mode = 1;
 
 signals:
     void closed();

@@ -34,13 +34,16 @@ public slots:
     void setFilterFocusSml0(bool v) { this->use_filter_focus_sml_0 = v;  updateLabel();}
     void setFilterFocusBound(bool v) { this->use_filter_focus_bound = v;  updateLabel();}
     void setFilterConsVariance(bool v) { this->use_filter_cons_variance = v;  updateLabel();}
+    void setMaxVariance(double mv){ this->max_variance = mv; updateLabel();}
+    void setShowCenterColorImage(bool v) { this->showCenterColorImage = v;  updateLabel();}
+
 
     void setViewMode(QString v){ this->view_mode = v.toStdString(); updateLabel();}
     void setSobelScale(double sc){ this->sobel_scale = sc; updateLabel();}
     void setSobelKernel(int sk){ this->sobel_k_size = sk; updateLabel();}
     void setGaussSigma(double gs){ this->gauss_sigma = gs; updateLabel();}
     void setGaussKernel(int gk){ this->gauss_k_size = gk; updateLabel();}
-    void setMaxVariance(double mv){ this->max_variance = mv; updateLabel();}
+
 
 private:
     void costAwareDepthMapEstimation();
@@ -125,9 +128,10 @@ private:
     std::string view_mode = "";
     float max_variance = 10.0f;
     bool use_consistency = true, use_focuscue = true,
-    use_filter_focus_sml_0 = true, use_filter_focus_bound = true, use_filter_cons_variance = true;
-    double focus_threshold;
-    const int size_d = 10;
+    use_filter_focus_sml_0 = true, use_filter_focus_bound = true, use_filter_cons_variance = true,
+    showCenterColorImage = false;
+    double focus_threshold = 16.0f;
+    const int size_d = 20;
 
     int sobel_k_size = 3;
     float sobel_scale = 1.0f;

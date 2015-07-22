@@ -20,7 +20,7 @@ uniform bool option_wb = true;
 uniform bool option_ccm = true;
 uniform bool option_gamma = true;
 uniform int option_display_mode = 1; // 0 - uv, 1 - focus
-int demosaicking_mode = 1; // 0 - nearest neighbour, 1 - bilinear
+uniform int demosaicking_mode = 1; // 0 - nearest neighbour, 1 - bilinear, 2 -
 bool option_superresolution = true;
 uniform bool is_raw = true;
 
@@ -39,7 +39,8 @@ vec4 computeColorAt(vec2 texel_pos){
     vec2 texel_loc = (pix_pos + vec2(0.5f, 0.5f)) / tex_dim;
 
     vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
-    if (bayer_pos == bvec2(0,0) ){ // green
+    if (bayer_pos == bvec2(0,0) ){ // green Gr
+                                   //       bg
         color.g = texture2D(lightfield, texel_loc).r;
         if (view_mode >= 2){ // demosaicking
             if (demosaicking_mode == 0){ // nearest neighbour
@@ -51,6 +52,32 @@ vec4 computeColorAt(vec2 texel_pos){
                          + texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r ) / 2;
                 color.b = (texture2D(lightfield, vec2(0,1)  / tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r ) / 2;
+            }
+            else if(demosaicking_mode == 2){ // high quality
+                // R at green in R row, B column
+                color.r = (texture2D(lightfield, texel_loc).r * 5
+                           + texture2D(lightfield, vec2(0,2) / tex_dim + texel_loc).r * 0.5
+                           + texture2D(lightfield, vec2(0,-2) / tex_dim + texel_loc).r * 0.5
+                           + texture2D(lightfield, vec2(1,1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-1,1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-1,-1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(2,0) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-2,0) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(1,0) / tex_dim + texel_loc).r * 4
+                           + texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r * 4) / 8;
+                // B at green in R row, B column
+                color.b = (texture2D(lightfield, texel_loc).r * 5
+                           + texture2D(lightfield, vec2(0,2) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(0,-2) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(1,1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-1,1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-1,-1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(2,0) / tex_dim + texel_loc).r * 0.5
+                           + texture2D(lightfield, vec2(-2,0) / tex_dim + texel_loc).r * 0.5
+                           + texture2D(lightfield, vec2(0,1) / tex_dim + texel_loc).r * 4
+                           + texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r * 4) / 8;
             }
         }
     }
@@ -72,6 +99,28 @@ vec4 computeColorAt(vec2 texel_pos){
                          + texture2D(lightfield, vec2(1,1)  / tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r) / 4;
             }
+            else if(demosaicking_mode == 2){ // high quality
+                // G at R locations
+                color.g = (texture2D(lightfield, texel_loc).r * 4
+                           + texture2D(lightfield, vec2(0,1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(1,0) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(0,2) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(0,-2) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(2,0) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-2,0) / tex_dim + texel_loc).r * -1) / 8;
+                // B at R locations
+                color.b = (texture2D(lightfield, texel_loc).r * 6
+                           + texture2D(lightfield, vec2(1,1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(-1,1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(-1,-1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(0,2) / tex_dim + texel_loc).r * -1.5
+                           + texture2D(lightfield, vec2(0,-2) / tex_dim + texel_loc).r * -1.5
+                           + texture2D(lightfield, vec2(2,0) / tex_dim + texel_loc).r * -1.5
+                           + texture2D(lightfield, vec2(-2,0) / tex_dim + texel_loc).r * -1.5) / 8;
+            }
         }
     }
     else if (bayer_pos == bvec2(0,1) ){ // blue
@@ -92,6 +141,28 @@ vec4 computeColorAt(vec2 texel_pos){
                          + texture2D(lightfield, vec2(1,1)  / tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r) / 4;
             }
+            else if(demosaicking_mode == 2){ // high quality
+                // G at B locations
+                color.g = (texture2D(lightfield, texel_loc).r * 4
+                           + texture2D(lightfield, vec2(0,1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(1,0) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(0,2) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(0,-2) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(2,0) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-2,0) / tex_dim + texel_loc).r * -1) / 8;
+                // R at B locations
+                color.r = (texture2D(lightfield, texel_loc).r * 6
+                           + texture2D(lightfield, vec2(1,1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(-1,1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(-1,-1) / tex_dim + texel_loc).r * 2
+                           + texture2D(lightfield, vec2(0,2) / tex_dim + texel_loc).r * -1.5
+                           + texture2D(lightfield, vec2(0,-2) / tex_dim + texel_loc).r * -1.5
+                           + texture2D(lightfield, vec2(2,0) / tex_dim + texel_loc).r * -1.5
+                           + texture2D(lightfield, vec2(-2,0) / tex_dim + texel_loc).r * -1.5) / 8;
+            }
         }
     }
     else if (bayer_pos == bvec2(1,1) ){ // green
@@ -106,6 +177,32 @@ vec4 computeColorAt(vec2 texel_pos){
                          + texture2D(lightfield, vec2(0,-1)  / tex_dim + texel_loc).r ) / 2;
                 color.b = (texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r
                          + texture2D(lightfield, vec2(1,0)  / tex_dim + texel_loc).r ) / 2;
+            }
+            else if(demosaicking_mode == 2){ // high quality
+                // R at green in B row, R column
+                color.r = (texture2D(lightfield, texel_loc).r * 5
+                           + texture2D(lightfield, vec2(0,2) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(0,-2) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(1,1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-1,1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-1,-1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(2,0) / tex_dim + texel_loc).r * 0.5
+                           + texture2D(lightfield, vec2(-2,0) / tex_dim + texel_loc).r * 0.5
+                           + texture2D(lightfield, vec2(0,1) / tex_dim + texel_loc).r * 4
+                           + texture2D(lightfield, vec2(0,-1) / tex_dim + texel_loc).r * 4) / 8;
+                // B at green in B row, R column
+                color.b = (texture2D(lightfield, texel_loc).r * 5
+                           + texture2D(lightfield, vec2(0,2) / tex_dim + texel_loc).r * 0.5
+                           + texture2D(lightfield, vec2(0,-2) / tex_dim + texel_loc).r * 0.5
+                           + texture2D(lightfield, vec2(1,1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-1,1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(1,-1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-1,-1) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(2,0) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(-2,0) / tex_dim + texel_loc).r * -1
+                           + texture2D(lightfield, vec2(1,0) / tex_dim + texel_loc).r * 4
+                           + texture2D(lightfield, vec2(-1,0) / tex_dim + texel_loc).r * 4) / 8;
             }
         }
     }
