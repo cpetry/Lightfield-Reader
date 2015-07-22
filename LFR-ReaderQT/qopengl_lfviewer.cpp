@@ -670,6 +670,11 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
       glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
     }
 
+    if (opengl_save_current_image){
+        glReadPixels(0,0, save_img.cols, save_img.rows, GL_BGR, GL_UNSIGNED_BYTE, save_img.data);
+        opengl_save_current_image = false;
+    }
+
     // restore default FBO
     glBindFramebuffer( GL_FRAMEBUFFER, defaultFramebufferObject());
 }
@@ -787,7 +792,6 @@ void QOpenGL_LFViewer::saveRaw(){
                                                 QDir::currentPath(),
                                                 "Images (*.png *.xpm *.jpg)");
 
-    QVector<QRgb> colorTable;
     QImage retImg(texture.cols,texture.rows,QImage::Format_Indexed8);
     QVector<QRgb> table( 256 );
     for( int i = 0; i < 256; ++i )
@@ -814,13 +818,17 @@ void QOpenGL_LFViewer::saveRaw(){
 
 void QOpenGL_LFViewer::saveImage(){
     //glViewport((width - side) / 2, (height - side) / 2, side, side);
-    //update();
+    opengl_save_current_image = true;
+    save_img.create(meta_infos.height, meta_infos.width, CV_8UC3);
+    update();
     QString filename = QFileDialog::getSaveFileName(0,
                                                 "Save File",
                                                 QDir::currentPath(),
                                                 "Images (*.png *.xpm *.jpg)");
     if (filename != ""){
-        this->grabFramebuffer().save(filename);
+        cv::flip(save_img, save_img, 0);
+        cv::imwrite(filename.toStdString(), save_img);
+        //this->grabFramebuffer().save(filename);
     }
 
     //saveMetaInfo(filename);

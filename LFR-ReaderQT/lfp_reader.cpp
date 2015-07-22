@@ -57,6 +57,9 @@ QImage LFP_Reader::readRawPixelData(std::basic_ifstream<unsigned char> &input, i
     int read_byte = 0;
     int nmb_byte = 0;
 
+    if (section_length == 0)
+        section_length = this->meta_infos.width*this->meta_infos.height/4.0f*5.0f;
+
     float multipl = 1.0f / (1023.0f - 64.0f) * 255.0f;
 
     while(row < image.height()){
@@ -196,17 +199,7 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
         if(!save_file_name.empty()){
             lfp_raw_view* mgv = new lfp_raw_view(NULL, image, meta_infos);
             image = mgv->demosaic(3);
-            /*QImage retImg(image.width(),image.height(),QImage::Format_Indexed8);
-            QVector<QRgb> table( 256 );
-            for( int i = 0; i < 256; ++i )
-                table[i] = qRgb(i,i,i);
 
-            retImg.setColorTable(table);
-            for(int i =0; i< image.width();i++)
-                for(int j=0; j< image.height();j++)
-                    retImg.setPixel(i,j,qRed(image.pixel(i,j)));*/
-
-            //bool saved = retImg.save(QString::fromStdString(save_file_name));
             bool saved = image.save(QString::fromStdString(save_file_name));
             if (saved)
                 qDebug() << "Saved raw to " << QString::fromStdString(save_file_name);
@@ -270,14 +263,15 @@ void LFP_Reader::parseLFMetaInfo(QString meta_info){
         meta_infos.mla_pixelPitch = atof(getValueOf("\"pixelPitch\"", smeta, int(pos)).c_str());
 
         pos = smeta.find("mla");
-        meta_infos.mla_rotation = atof(getValueOf("rotation", smeta, int(pos)).c_str());
+        meta_infos.mla_rotation = atof(getValueOf("\"rotation\"", smeta, int(pos)).c_str());
+        meta_infos.mla_lensPitch = atof(getValueOf("\"lensPitch\"", smeta, int(pos)).c_str());
+
         pos = smeta.find("scaleFactor");
-        meta_infos.mla_scale_x = atof(getValueOf("x", smeta, int(pos)).c_str());
-        meta_infos.mla_scale_y = atof(getValueOf("y", smeta, int(pos)).c_str());
-        meta_infos.mla_lensPitch = atof(getValueOf("lensPitch", smeta, int(pos)).c_str());
+        meta_infos.mla_scale_x = atof(getValueOf("\"x\"", smeta, int(pos)).c_str());
+        meta_infos.mla_scale_y = atof(getValueOf("\"y\"", smeta, int(pos)).c_str());
         pos = smeta.find("sensorOffset");
-        meta_infos.mla_centerOffset_x = atof(getValueOf("x", smeta, int(pos)).c_str());;
-        meta_infos.mla_centerOffset_y = atof(getValueOf("y", smeta, int(pos)).c_str());;
+        meta_infos.mla_centerOffset_x = atof(getValueOf("\"x\"", smeta, int(pos)).c_str());;
+        meta_infos.mla_centerOffset_y = atof(getValueOf("\"y\"", smeta, int(pos)).c_str());;
 
         /*std::cout << meta_infos.bits << std::endl;
         std::cout << meta_infos.width << std::endl;
@@ -297,18 +291,32 @@ void LFP_Reader::parseLFMetaInfo(QString meta_info){
 
 
 
-bool LFP_Reader::read_RAWFile(MainWindow* main, std::string file ){
+bool LFP_Reader::read_RAWFile(MainWindow* main, std::string file, std::string save_file_name ){
     std::basic_ifstream<unsigned char> input(file, std::ifstream::binary);
 
-    int sec_length = getSectionLength(input);
+    //int sec_length = getSectionLength(input);
+    int sec_length = input.tellg();
 
     QImage image = readRawPixelData(input, sec_length);
-    main->addTabImage("No Header", "No SHA1", sec_length, image, true, this->meta_infos); // is a raw image
+
+    // if we want to save several images, we dont need tabs
+    if(!save_file_name.empty()){
+        //lfp_raw_view* mgv = new lfp_raw_view(NULL, image, meta_infos);
+        //image = mgv->demosaic(3);
+
+        bool saved = image.save(QString::fromStdString(save_file_name));
+        if (saved)
+            qDebug() << "Saved raw to " << QString::fromStdString(save_file_name);
+        else
+            qDebug() << "Could not save to " << QString::fromStdString(save_file_name);
+    }
+    else
+        main->addTabImage("No Header", "No SHA1", sec_length, image, true, this->meta_infos); // is a raw image
 
     return true;
 }
 
-bool LFP_Reader::read_lfp(MainWindow* main, std::string file, bool save_raw_to_file, std::string raw_file_name){
+bool LFP_Reader::read_lfp(MainWindow* main, std::string file, std::string raw_file_name){
     std::basic_ifstream<unsigned char> input(file, std::ifstream::binary);
 
     // magic 12 byte File Header

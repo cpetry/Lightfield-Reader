@@ -109,6 +109,7 @@ private:
     cv::Mat pretexture;
     int tick_ms = 5;
     int index = 0;
+    cv::Mat save_img;
 
     GLuint texture_id, framebuffer, renderedTexture_id, renderedTex_id, lightfield_id;
     float orthosize = 1.0f;
@@ -132,6 +133,7 @@ private:
     bool opengl_option_is_demosaicked = false;
     bool opengl_option_display_mode = 1;
     bool opengl_option_render_frames = false;
+    bool opengl_save_current_image = false;
     bool texture_is_raw = false;
     bool is_video = false, is_imagelist = false;
     bool video_playing = false;

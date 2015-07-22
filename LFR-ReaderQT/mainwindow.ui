@@ -29,6 +29,7 @@
     </property>
     <addaction name="actionLFP"/>
     <addaction name="actionExtractLFFolder"/>
+    <addaction name="actionCreateCalibrationImage"/>
    </widget>
    <widget class="QMenu" name="menuVideo">
     <property name="title">
@@ -109,6 +110,11 @@
   <action name="actionGenerate_DepthMap">
    <property name="text">
     <string>Generate DepthMap</string>
+   </property>
+  </action>
+  <action name="actionCreateCalibrationImage">
+   <property name="text">
+    <string>CreateCalibrationImage</string>
    </property>
   </action>
  </widget>

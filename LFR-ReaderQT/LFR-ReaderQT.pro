@@ -36,7 +36,8 @@ SOURCES += main.cpp \
     qopengl_lfviewer.cpp \
     reconstruction3d.cpp \
     imagedepth.cpp \
-    lfp_raw_view.cpp
+    lfp_raw_view.cpp \
+    calibration.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
@@ -44,7 +45,8 @@ HEADERS  += mainwindow.h \
     qopengl_lfviewer.h \
     reconstruction3d.h \
     imagedepth.h \
-    lfp_raw_view.h
+    lfp_raw_view.h \
+    calibration.h
 
 FORMS    += mainwindow.ui
 

@@ -17,9 +17,11 @@
 #include <QDate>
 #include <QMessageBox>
 #include <QComboBox>
+#include <QTextStream>
 
 #include "reconstruction3d.h"
 #include "imagedepth.h"
+#include "calibration.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -43,7 +45,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionOpen_Image_Sequence, &QAction::triggered, this, &MainWindow::chooseVideoFromImageSequence);
     connect(ui->actionCreate_3DScene, &QAction::triggered, this, &MainWindow::chooseCreate3DScene);
     connect(ui->actionGenerate_DepthMap, &QAction::triggered, this, &MainWindow::chooseGenerate_DepthMap);
-
+    connect(ui->actionCreateCalibrationImage, &QAction::triggered, this, &MainWindow::chooseCreateCalibrationImage);
 
     //chooseLFImage();
 }
@@ -53,15 +55,60 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::chooseCreateCalibrationImage(){
+    QStringList files = QFileDialog::getOpenFileNames(this,
+                               QString("Choose all RAW Images"), // window name
+                               "../",                            // directory
+                               QString("Extracted RAW Images(*.PNG)"));   // filetype
+
+    if (files.length() > 0)
+        calibration::createCalibrationImage(files);
+}
+
 void MainWindow::chooseExtractRawLFFolder(){
     QStringList files = QFileDialog::getOpenFileNames(this,
                                QString("Choose multiple Lightfield Images"), // window name
                                "../",                                       // directory
                                QString("LightField Container(*.LFP *.LFR *.RAW)"));   // filetype
     for(int i=0; i<files.length(); i++){
-        QString output_name(QDir::currentPath() + "/raw_lfp_" + QDate::currentDate().toString(Qt::ISODate)
+        QString file = files[i];
+        QString output_name(QDir::currentPath() + "/RAW_" + QDate::currentDate().toString(Qt::ISODate)
                             + "_" + QString::number(i) + ".png");
-        reader.read_lfp(this, files[i].toStdString(), true, output_name.toStdString());
+        if (file.endsWith("lfp", Qt::CaseInsensitive)
+                || file.endsWith("lfr", Qt::CaseInsensitive)){
+            reader.read_lfp(this, files[i].toStdString(), output_name.toStdString());
+        }
+        // Loading RAW + txt (optional)
+        else if (file.endsWith("RAW", Qt::CaseInsensitive)){
+
+            // first try to read meta info
+            QString filename = file.split('.')[0];
+            std::string txt_file = filename.toStdString() + ".TXT";
+
+            if (QFile(QString::fromStdString(txt_file)).exists()){
+                std::basic_ifstream<unsigned char> input(txt_file, std::ifstream::binary);
+                std::string text = reader.readText(input);
+                QString meta_info = QString::fromStdString(text);
+                //addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
+                reader.parseLFMetaInfo(meta_info);
+                if (!output_name.isEmpty()){
+                    QString output_text_file = output_name;
+                    output_text_file.chop(4);
+                    QFile outputFile(output_text_file + ".txt");
+                    outputFile.open(QIODevice::WriteOnly);
+                    // Check it opened OK
+                    if(!outputFile.isOpen()){
+                        qDebug() << "- Error, unable to open" << output_text_file << "for output";
+                        //return 1;
+                    }
+                    outputFile.write(text.c_str(), text.length());        // write to stderr
+                    outputFile.close();
+                }
+            }
+
+            // now reading raw file
+            reader.read_RAWFile(this, file.toStdString(), output_name.toStdString());
+        }
     }
 }
 

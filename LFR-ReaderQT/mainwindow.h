@@ -30,6 +30,7 @@ public slots:
     void chooseLFImage();
     void chooseConvertImages();
     void chooseExtractRawLFFolder();
+    void chooseCreateCalibrationImage();
     void chooseCreateVideoFromPNGs();
     void chooseVideoPlayer();
     void chooseVideoFromImageSequence();
