@@ -182,12 +182,14 @@ cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_
 
     int N = 15; //??
     int c_pix = 7; //??
-    double F_s = 1.3999999999999999e-6; // = F_t
-    double F_u = 2.0000000000000002e-5; // = F_v
-    double c_Mx = -5.8005247410619631e-5;   // optical center offset in mm
-    double c_My = 1.1605224244704004e-5;    // optical center offset in mm
-    double c_mux = -7.3299932479858395e-6;  // mla offset in mm
-    double c_muy = 5.5686492919921878e-6;   // mla offset in mm
+    double pix_size = 1.3999999999999999e-6; // in m
+    double lens_size = 2.0000000000000002e-5; // in m
+    double F_s = 1.0/pix_size; // = F_t
+    double F_u = 1.0/lens_size; // = F_v
+    double c_Mx = -5.8005247410619631e-5 / pix_size;   // optical center offset in mm
+    double c_My = 1.1605224244704004e-5 / pix_size;    // optical center offset in mm
+    double c_mux = -7.3299932479858395e-6 / pix_size;  // mla offset in mm
+    double c_muy = 5.5686492919921878e-6 / pix_size;   // mla offset in mm
     double d_mu = 3.6999999999999998e-5;    // mla offset in mm
     double d_M = 0.11559105682373047 - d_mu; // exitPupilOffset - d_mu
     double f_M = 0.011542153404246169; // focal length
@@ -266,16 +268,15 @@ cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_
 
     //C (t,s,d) = 1/n(S)* sum(|a(i_r,j_r,k,l) - a(i',j',k',l'|)
     // k', l' have to be calculated with H
-    int i_r = 7;
-    int j_r = 7;
     int sizes[] = { size_l, size_k, size_d};
     cv::Mat cost(3, sizes, CV_32FC1);
 
+    cv::Mat a(1, 9, CV_32FC1);
+    cv::Vec3f c_, cdx_, cdy_ ;
+
     for(int l=0; l<size_l; l++)
     for(int k=0; k<size_k; k++){
-        cv::Vec3f c = img.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
-        cv::Vec3f c_dx = dx.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
-        cv::Vec3f c_dy = dy.at<cv::Vec3f>(l + j_r*size_l, k + i_r*size_k);
+
         for(int d=0; d<size_d; d++){
 
             float sum = 0;
@@ -285,42 +286,46 @@ cv::Mat ImageDepth::costAware_createCostVolume(const int size_i, const int size_
                 //a(u,v,t,s)
                 int i_f = i;
                 int j_f = j;
-                i_f -= size_i/2;
+                //i_f -= size_i/2;
                 //i_f /= size_i;
-                j_f -= size_j/2;
-                //j_f *= 1.4;
+                //j_f -= size_j/2;
                 //j_f /= size_j;
-                float df = d - 1.0f*size_d/2;
-                df = df*1.0f/size_d;
-                float li = l;
-                float ki = k;
+
+                float df = d;// - 1.0f*size_d/2;
+                //df = df*1.0f/size_d;
+
                 float zx = H.at<float>(0,0)*i_f + H.at<float>(0,4) + df*H.at<float>(0,2)*i_f + df*H.at<float>(2,4);
                 float nx = H.at<float>(0,2) + df*H.at<float>(2,2);
-                //int k_ = (ki-zx) / nx;
-                float diff_k = zx / nx;
-                int k_ = ki-diff_k;
+                int k_ = (k-zx) / nx;
+                //float diff_k = zx / nx;
+                //int k_ = k-diff_k;
+
                 float zy = H.at<float>(1,1)*j_f + H.at<float>(1,4) + df*H.at<float>(3,1)*j_f + df*H.at<float>(3,4);
                 float ny = H.at<float>(1,3) + df*H.at<float>(3,3);
-                //int l_ = (li-zy) / ny;
-                float diff_l = zy / ny;
-                int l_ = li-diff_l;
+                int l_ = (l-zy) / ny;
+                //float diff_l = zy / ny;
+                //int l_ = l-diff_l;
 
-                /*float pix_i = i_f*0.0125/F_s;
-                float pix_j = j_f*0.0125/F_s;
-                float change_k = (df*0.1/f_M*(pix_i+(ki-size_k))); // i_f*1.495925
-                float change_l = (df*0.1/f_M*(pix_j+(li-size_l))); // j_f*1.495925+
-                int k_ = ki - change_k;
-                int l_ = li - change_l;*/
 
                 if (k_ < 0 || l_< 0 || k_ >= size_k || l_ >= size_l)
                     continue;
                 s_count++;
-                cv::Vec3f c_ = img.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
-                cv::Vec3f cdx_ = dx.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
-                cv::Vec3f cdy_ = dy.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
-                sum += cv::norm(c - c_);
-                sum += cv::norm(c_dx - cdx_);
-                sum += cv::norm(c_dy - cdy_);
+                c_ = img.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                cdx_ = dx.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                cdy_ = dy.at<cv::Vec3f>(l_ + j*size_l, k_ + i*size_k);
+                a.at<float>(0,0) = c_[0];
+                a.at<float>(0,1) = c_[1];
+                a.at<float>(0,2) = c_[2];
+                a.at<float>(0,3) = cdx_[0];
+                a.at<float>(0,4) = cdx_[1];
+                a.at<float>(0,5) = cdx_[2];
+                a.at<float>(0,6) = cdy_[0];
+                a.at<float>(0,7) = cdy_[1];
+                a.at<float>(0,8) = cdy_[2];
+                sum += cv::norm(a);
+                //sum += cv::norm(c - c_);
+                //sum += cv::norm(c_dx - cdx_);
+                //sum += cv::norm(c_dy - cdy_);
             }}
             cost.at<float>(l, k, d) = sum / s_count;
         }
@@ -461,16 +466,16 @@ void ImageDepth::costAwareDepthMapEstimation(){
 
         if (use_focuscue && use_consistency && (
                 (avg_f == 0 && use_filter_focus_sml_0)                   // first  case: SML are all 0
-            || ((estimated_depth > size_d - max_d) && use_filter_focus_bound))     // second case: estimated depth is not inside bounds
+            || ((estimated_depth > avg_f) && use_filter_focus_bound))     // second case: estimated depth is not inside bounds
             || (variance > max_variance*10 && use_filter_cons_variance)){// || estimated_depth > max_d)){
             cost_depth.at<float>(t, s) = 0;
             continue;
         }
         else if (use_focuscue && !use_consistency)
-                cost_depth.at<float>(t, s) = size_d - max_d;
-        else{
+            cost_depth.at<float>(t, s) = avg_f;//size_d - max_d;
+        else
             cost_depth.at<float>(t, s) = estimated_depth;
-        }
+
     }
 
 

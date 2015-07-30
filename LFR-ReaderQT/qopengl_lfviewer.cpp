@@ -54,6 +54,7 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video,
     }
 }
 
+
 QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_video, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0) {
 
@@ -70,7 +71,8 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_v
 QOpenGL_LFViewer::~QOpenGL_LFViewer()
 {
     makeCurrent();
-    _func330->glDeleteBuffers(2, pboIds);
+    if (pboIds[0] != 0 && pboIds[1] != 0)
+        _func330->glDeleteBuffers(2, pboIds);
     texture.release();
     vbo.destroy();
     delete program;
@@ -814,6 +816,17 @@ void QOpenGL_LFViewer::saveRaw(){
     }
 
     //saveMetaInfo(filename);
+}
+
+cv::Mat QOpenGL_LFViewer::getDemosaicedImage(int mode){
+    opengl_option_demosaicking_mode = mode;
+    opengl_save_current_image = true;
+    opengl_view_mode = 2;
+    save_img.create(meta_infos.height, meta_infos.width, CV_8UC3);
+    update();
+    cv::flip(save_img, save_img, 0);
+    cv::imwrite("bla.png", save_img);
+    return save_img.clone();
 }
 
 void QOpenGL_LFViewer::saveImage(){

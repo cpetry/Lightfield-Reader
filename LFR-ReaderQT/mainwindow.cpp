@@ -61,8 +61,48 @@ void MainWindow::chooseCreateCalibrationImage(){
                                "../",                            // directory
                                QString("Extracted RAW Images(*.PNG)"));   // filetype
 
-    if (files.length() > 0)
-        calibration::createCalibrationImage(files);
+    if (files.length() > 0){
+
+        // first try to read meta info
+        QString filename = files[0].split('.')[0];
+        std::string txt_file = filename.toStdString() + ".TXT";
+
+        if (QFile(QString::fromStdString(txt_file)).exists()){
+            std::basic_ifstream<unsigned char> input(txt_file, std::ifstream::binary);
+            std::string text = reader.readText(input);
+            QString meta_info = QString::fromStdString(text);
+            //addTabMetaInfos("No Header", "No sha1", meta_info.length(), meta_info, "MetaInfo");
+            reader.parseLFMetaInfo(meta_info);
+        }
+        else{
+            int ret = QMessageBox::warning(this, tr("Loading LightField Image"),
+                                 tr("Meta Info File not found.\n"
+                                    "Do you want to continue?"),
+                                 QMessageBox::Yes | QMessageBox::No,
+                                 QMessageBox::No);
+            if (ret == QMessageBox::No)
+                return;
+        }
+
+        //Create average image
+        //cv::Mat image = calibration::createCalibrationImage(files);
+        //cv::imwrite("calibrated_img.png", image);
+
+        //Create Demosaiced image
+        //cv::Mat demosaiced_image = calibration::demosaicCalibrationImage(this, QString("calibrated_img.png"), reader.meta_infos, 3);
+        //cv::imwrite("calibrated_img_demosaiced.png", demosaiced_image);
+
+        //Convert to grayscale
+        cv::Mat demosaiced_image = cv::imread(files[0].toStdString(), 1);
+        cv::Mat grayscaled_image;
+        cv::cvtColor(demosaiced_image, grayscaled_image, cv::COLOR_BGR2GRAY);
+        cv::normalize(grayscaled_image, grayscaled_image, 0, 255, CV_MINMAX );
+        cv::imwrite("calibrated_stretched.png", grayscaled_image);
+
+
+        //cv::imwrite("calibrated_img_demosaiced.png", demosaiced_image);
+
+    }
 }
 
 void MainWindow::chooseExtractRawLFFolder(){

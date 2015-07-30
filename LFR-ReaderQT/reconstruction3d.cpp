@@ -7,6 +7,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QString>
+#include <QStringList>
 
 #include "reconstruction3d.h"
 
@@ -53,33 +54,94 @@ void testPowerCrust(){
 
 void reconstruction3D::addDepthMap(){
     // QImage file
-    QString file = QFileDialog::getOpenFileName( 0,
-                               QString("Choose Depth map"),           // window name
-                               "../",                                       // relative folder
-                               QString("Depth Images(*.PNG *.JPG);;Point clouds (*.PCD)"));  // filetype
-    if (!file.isNull()){
-        depthmaps.push_back(cv::imread(file.toStdString()));
+    QStringList files = QFileDialog::getOpenFileNames(NULL,
+                               QString("Choose depth Images"), // window name
+                               "../",                            // directory
+                               QString("Images(*.PNG *.JPG)"));   // filetype
+    if (!files.empty()){
+        for (int i=0; i<files.length(); i++)
+            depthmaps.push_back(cv::imread(files[i].toStdString()));
     }
 }
 
 void reconstruction3D::calculatePointCloud(){
 
     // set initial settings of point cloud
-    cloud->width    += depthmaps[0].cols;
-    cloud->height   += depthmaps[0].rows;
+    cloud->width    = depthmaps[0].cols;
+    cloud->height   = depthmaps[0].rows;
     cloud->is_dense = true;
-    cloud->points.resize (cloud->width * cloud->height * depthmaps.size());
-    int depth_idx = 0;
     int cn = depthmaps[0].channels();
 
-    // Fill in the cloud data
+    // calculate size of cloud
+    int cloud_size = 0;
     for (int i=0; i<depthmaps.size(); i++){
         for(int y=0; y<cloud->height; y++){
             for(int x=0; x<cloud->width; x++){
-                pcl::PointXYZ& pt = cloud->points[depth_idx++];
-                pt.z = -depthmaps[i].data[y*depthmaps[i].cols*cn + x*cn + 0]/255.0f;// / 24.135f / 2;// / 255.0f * 2;
-                pt.x = x * 1.0f / cloud->width + 0.2*i;
-                pt.y = y * 1.0f / cloud->height;
+                int pos = y*depthmaps[i].cols*cn + x*cn + 0;
+                if (depthmaps[i].data[pos] > 0){
+                    cloud_size++;
+                }
+            }
+        }
+    }
+
+    // set size of cloud
+    cloud->points.resize (cloud_size);
+
+    // Fill in the cloud data
+    // teapot width = 85mm // 195
+    float aspect_ratio = cloud->width * 1.0f / cloud->height;
+    float min_mm = 102.0f;// 155.0f;
+    float width_mm = 195.0f;
+    float height_mm = 148.0f;
+    float max_mm = 280.0f; //300.0f;
+    float camera_dist = 188.0f;
+    float total_depth_size = max_mm - min_mm; //mm - maximum - minimum
+    int depth_idx = 0;
+
+    /*
+    for (int i=0; i<depthmaps.size(); i++){
+        float theta = 36.0f * i * M_PI/180; // The angle of rotation in radians
+        Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
+        transform_2.rotate (Eigen::AngleAxisf (theta, Eigen::Vector3f::UnitY()));
+
+        for(int y=0; y<cloud->height; y++){
+            for(int x=0; x<cloud->width; x++){
+                int pos = y*depthmaps[i].cols*cn + x*cn + 0;
+                if (depthmaps[i].data[pos] > 0){
+                    pcl::PointXYZ& pt = cloud->points[depth_idx++];
+                    float img_value = depthmaps[i].data[pos] / 255.0f; // [0,1]
+                    float sqr_dist_height_mm = std::pow(std::fabs(x - cloud->height/2.0f )/cloud->height*height_mm,2);
+                    float sqr_dist_width_mm = std::pow(std::fabs(y - cloud->width/2.0f )/cloud->width*width_mm,2);
+                    float sqr_dist_mm = std::pow(img_value*total_depth_size + min_mm,2);
+                    float correct_distance_mm = std::sqrt(sqr_dist_mm - sqr_dist_height_mm + sqr_dist_width_mm);
+                    float max_dist_mm = std::sqrt(sqr_dist_height_mm + sqr_dist_width_mm + std::pow(max_mm,2));
+                    float cam_dist_mm = std::sqrt(sqr_dist_height_mm + sqr_dist_width_mm + std::pow(camera_dist,2));
+                    float depth_value =  (correct_distance_mm - cam_dist_mm) / max_dist_mm;// * total_depth_size - (max_mm - camera_dist)) / total_depth_size; //(img_value * total_depth_size  / (width_mm / max_mm) + min_mm) / max_mm ;
+                    pt.z = depth_value / (width_mm / total_depth_size) ; // / 24.135f / 2;// / 255.0f * 2;
+                    pt.x = (x * 1.0f / cloud->width - 0.5f) ;
+                    pt.y = -(y * 1.0f / cloud->height - 0.5f) / aspect_ratio;
+                    Eigen::Vector3f v3 = pt.getVector3fMap ();
+                    pcl::transformPoint(v3, v3, transform_2);
+                    pt.x = v3[0];
+                    pt.y = v3[1];
+                    pt.z = v3[2];
+                }
+            }
+        }
+    }*/
+
+    for (int i=0; i<depthmaps.size(); i++){
+        for(int y=0; y<cloud->height; y++){
+            for(int x=0; x<cloud->width; x++){
+                int pos = y*depthmaps[i].cols*cn + x*cn + 0;
+                if (depthmaps[i].data[pos] > 0){
+                    pcl::PointXYZ& pt = cloud->points[depth_idx++];
+                    float img_value = depthmaps[i].data[pos] / 255.0f; // [0,1]
+                    pt.z = img_value;
+                    pt.x = (x * 1.0f / cloud->width - 0.5f) ;
+                    pt.y = -(y * 1.0f / cloud->height - 0.5f) / aspect_ratio;
+                }
             }
         }
     }

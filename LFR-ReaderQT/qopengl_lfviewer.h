@@ -60,6 +60,7 @@ public slots:
     void renderFrames(bool v) {opengl_option_render_frames = v; update();}
     void saveImage();
     void saveRaw();
+    cv::Mat getDemosaicedImage(int mode);
 
     void start_video();
     void stop_video();

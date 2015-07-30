@@ -127,11 +127,11 @@ private:
     cv::Mat input_img, output_img;
     std::string view_mode = "";
     float max_variance = 10.0f;
-    bool use_consistency = true, use_focuscue = true,
-    use_filter_focus_sml_0 = true, use_filter_focus_bound = true, use_filter_cons_variance = true,
+    bool use_consistency = true, use_focuscue = false,
+    use_filter_focus_sml_0 = false, use_filter_focus_bound = false, use_filter_cons_variance = false,
     showCenterColorImage = false;
     double focus_threshold = 16.0f;
-    const int size_d = 20;
+    const int size_d = 10;
 
     int sobel_k_size = 3;
     float sobel_scale = 1.0f;

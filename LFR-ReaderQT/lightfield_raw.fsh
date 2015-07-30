@@ -23,13 +23,14 @@ uniform int option_display_mode = 1; // 0 - uv, 1 - focus
 uniform int demosaicking_mode = 1; // 0 - nearest neighbour, 1 - bilinear, 2 -
 bool option_superresolution = true;
 uniform bool is_raw = true;
+float PI_3  = 3.141592653589f / 3.0f;
 
 varying mediump vec4 texc;
 layout(location = 0) out vec4 color;
 
 vec4 computeColorAt(vec2 texel_pos){
     // get position of current pixel
-    texel_pos = texel_pos * tex_dim + vec2(0.5,0.5);
+    texel_pos = texel_pos * tex_dim;// + vec2(0.5,0.5);
     ivec2 pix_pos = ivec2(texel_pos);
 
     // determine bayer position of pixel
@@ -232,18 +233,78 @@ vec4 computeColorAt(vec2 texel_pos){
         //color.r = pow(color.r, sqrt(modulationExposureBias));
         //color.g = pow(color.g, sqrt(modulationExposureBias));
         //color.b = pow(color.b, sqrt(modulationExposureBias));
-        color.r = pow(color.r, 0.496660f);
-        color.g = pow(color.g, 0.496660f);
-        color.b = pow(color.b, 0.496660f);
+        color.r = pow(color.r, 0.4166600108f); // 4166600108
+        color.g = pow(color.g, 0.4166600108f);
+        color.b = pow(color.b, 0.4166600108f);
 
     }
     return color;
+}
+
+// Compute barycentric coordinates (u, v, w) for
+// point p with respect to triangle (a, b, c)
+vec4 colorFromBarycentricCoords(vec2 p, vec2 a, vec2  b, vec2 c){
+        vec2 v0 = b - a, v1 = c - a, v2 = p - a;
+        float d00 = dot(v0, v0);
+        float d01 = dot(v0, v1);
+        float d11 = dot(v1, v1);
+        float d20 = dot(v2, v0);
+        float d21 = dot(v2, v1);
+        float denom = d00 * d11 - d01 * d01;
+        float v = (d11 * d20 - d01 * d21) / denom;
+        float w = (d00 * d21 - d01 * d20) / denom;
+        float u = 1.0f - v - w;
+        //return computeColorAt(a) * u + computeColorAt(b) * v + computeColorAt(c) * w;
+        return vec4(1,0,0,1) * u + vec4(0,0,1,1) * v + vec4(0,1,0,1) * w;
+        if (u > v && u > w)
+            return vec4(1,0,0,1);
+        else if (v > u && v > w)
+            return vec4(0,0,1,1);
+        else if (w > u && w > v)
+            return vec4(0,1,0,1);
+        else
+            return vec4(0,0,0,1);
 }
 
 // get color from st uv coordinates
 vec4 recalcPosAtSTUV(vec2 st, vec2 uv){
     vec4 fragcol=vec4(0,0,0,1);
     if(is_raw){
+        /* barycentric coordinates
+        float sty_perc = abs(st.y - int(st.y));
+        float stx_perc = abs(st.x - int(st.x));
+        //if (int(st.y) % 2 == 1)
+        //    stx_perc += 0.5;
+
+        if (stx_perc > 0.5){
+            stx_perc -= 0.5;
+            sty_perc = 1-sty_perc;
+        }
+        if (int(st.y) % 2 == 1){
+            stx_perc = abs(stx_perc-0.5);
+            sty_perc = 1-sty_perc;
+        }
+        vec2 pixel_pos = (lenslet_m * st);
+
+        if (st.x > 0 && st.y > 0){
+            if(atan(sty_perc, stx_perc) < PI_3){
+                vec2 a = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) + vec2(0.5,0)) + uv)) / tex_dim;
+                vec2 b = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y))) + uv)) / tex_dim;
+                vec2 c = (centerLens_pos + (lenslet_m * (vec2(int(st.x)+1,int(st.y))) + uv)) / tex_dim;
+                vec2 p = (centerLens_pos + pixel_pos) / tex_dim;
+                fragcol = colorFromBarycentricCoords(p, a, b, c);
+            }
+            else{
+                vec2 a = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) + vec2(0.5,0)) + uv)) / tex_dim;
+                vec2 b = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) - vec2(0.5,0)) + uv)) / tex_dim;
+                vec2 c = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y))) + uv)) / tex_dim;
+                vec2 p = (centerLens_pos + pixel_pos) / tex_dim;
+                fragcol = colorFromBarycentricCoords(p, a, b, c);
+            }
+        }
+        else
+            fragcol = vec4(0,0,0,1);*/
+
         if(int(st.y) % 2 == 1){
             vec2 texel_pos1 = (centerLens_pos + (lenslet_m * (st + vec2(0.5,0)) + uv)) / tex_dim;
             vec2 texel_pos2 = (centerLens_pos + (lenslet_m * (st - vec2(0.5,0)) + uv)) / tex_dim;
@@ -293,13 +354,13 @@ void main(void)
         vec2 uv = ivec2(uv_exact) - lenslet_dim/2; // from center
         st = vec2(1.0,1.0)-(uv_exact - ivec2(uv_exact)); // invert
 
-        st = vec2(0.5,0.5) - st; // from center
-        st *= vec2(floor(size_st.x)-2, size_st.y); // size of st plane
+        st = vec2(0.5,0.5) - st; // from center + flip
+        st *= vec2(int(size_st.x), size_st.y); // size of st plane
         //st *= size_st; // size of st plane
         st = floor(st + vec2(0.5f,0.5f)); // exact st position
 
         uv *= vec2(15,15) / lenslet_dim; //stretch uv coordinates from center
-        color = recalcPosAtSTUV(st, uv);
+        color = recalcPosAtSTUV(st, uv); // st -312.5 - 312.5, -217.5 - 217.5
     }
     /*
     else if(view_mode > 2){
