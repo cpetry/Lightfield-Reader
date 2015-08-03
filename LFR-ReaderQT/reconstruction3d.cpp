@@ -3,6 +3,8 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+#include <Eigen/Dense>
+
 #include <QImage>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -93,11 +95,52 @@ void reconstruction3D::calculatePointCloud(){
     float aspect_ratio = cloud->width * 1.0f / cloud->height;
     float min_mm = 102.0f;// 155.0f;
     float width_mm = 195.0f;
-    float height_mm = 148.0f;
+    //float height_mm = 148.0f;
     float max_mm = 280.0f; //300.0f;
-    float camera_dist = 188.0f;
-    float total_depth_size = max_mm - min_mm; //mm - maximum - minimum
+    //float camera_dist = 188.0f;
+    double total_depth_size = max_mm - min_mm; //mm - maximum - minimum
+    double fovy = 42.654 * M_PI / 180.0;//55.0f / 2.0f * M_PI / 180.0f / aspect_ratio;
+    double fovx = 55.0   * M_PI / 180.0;
+    double height_half = cloud->height*1.0/2.0;
+    double width_half = cloud->width*1.0/2.0;
     int depth_idx = 0;
+
+    for (int i=0; i<depthmaps.size(); i++){
+        for(int y=0; y<cloud->height; y++){
+            for(int x=0; x<cloud->width; x++){
+                int pos = y*depthmaps[i].cols*cn + x*cn + 0;
+                if (depthmaps[i].data[pos] > 0){
+                    pcl::PointXYZ& pt = cloud->points[depth_idx++];
+                    double d = 1.0f - depthmaps[i].data[pos] / 255.0f; // [0,1]
+                    double hypo = d*total_depth_size + min_mm;
+                    /*Eigen::Vector2f xy(std::abs(width_half  - x)*1.0f / cloud->width * width_mm,
+                                       std::abs(height_half - y)*1.0f / cloud->height * height_mm);*/
+                    Eigen::Vector2d xy(std::sin(std::abs(width_half - x)  / cloud->width  * fovx) * hypo,
+                                       std::sin(std::abs(height_half - y) / cloud->height * fovy) * hypo);
+                    // a² = c² - b²
+                    double z = std::sqrt(std::pow(hypo,2) - std::pow(xy.norm(),2)); // calculate z!!!
+
+                    /*
+                    Eigen::Vector3f d_min_v(xy(0), xy(1), z);
+                    float ankathx = (proj_y * (proj_z * d_min_v)).norm();
+                    float ankathy = (proj_x * (proj_z * d_min_v)).norm();
+                    //float ankathx = std::cos(fovx * (std::abs(width_half - x) / width_half)) * hypox;
+                    //float ankathy = std::cos(fovy * (std::abs(height_half - y) / height_half)) * hypoy;
+
+                    float ankath = std::sqrt(ankathy * ankathy + ankathx * ankathx);
+                    */
+                    pt.z = (z - min_mm) / total_depth_size * (width_mm / total_depth_size) ; // / 24.135f / 2;// / 255.0f * 2;
+                    pt.x = (x * 1.0f / cloud->width - 0.5f) ;
+                    pt.y = -(y * 1.0f / cloud->height - 0.5f) / aspect_ratio;
+                    //Eigen::Vector3f v3 = pt.getVector3fMap ();
+                    //pcl::transformPoint(v3, v3, transform_2);
+                    //pt.x = v3[0];
+                    //pt.y = v3[1];
+                    //pt.z = v3[2];
+                }
+            }
+        }
+    }
 
     /*
     for (int i=0; i<depthmaps.size(); i++){
@@ -131,6 +174,7 @@ void reconstruction3D::calculatePointCloud(){
         }
     }*/
 
+    /*
     for (int i=0; i<depthmaps.size(); i++){
         for(int y=0; y<cloud->height; y++){
             for(int x=0; x<cloud->width; x++){
@@ -145,6 +189,7 @@ void reconstruction3D::calculatePointCloud(){
             }
         }
     }
+    */
 }
 
 void reconstruction3D::approximateNormals(){

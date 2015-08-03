@@ -882,6 +882,10 @@ void MainWindow::chooseGenerate_DepthMap(){
     max_variance->setMaximum(1000.0);
     connect(max_variance, SIGNAL(valueChanged(double)), id, SLOT(setMaxVariance(double)));
     buttons_layout->addWidget(max_variance,5,2);
+    QCheckBox* check_fill_holes = new QCheckBox("fill up holes");
+    check_fill_holes->setChecked(true);
+    connect(check_fill_holes, SIGNAL(clicked(bool)), id, SLOT(setFillUpHoles(bool)));
+    buttons_layout->addWidget(check_fill_holes,6,1);
 
     /*
     QComboBox* cb = new QComboBox(this);

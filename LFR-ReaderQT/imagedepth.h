@@ -36,7 +36,7 @@ public slots:
     void setFilterConsVariance(bool v) { this->use_filter_cons_variance = v;  updateLabel();}
     void setMaxVariance(double mv){ this->max_variance = mv; updateLabel();}
     void setShowCenterColorImage(bool v) { this->showCenterColorImage = v;  updateLabel();}
-
+    void setFillUpHoles(bool v) { this->fill_up_holes = v;  updateLabel();}
 
     void setViewMode(QString v){ this->view_mode = v.toStdString(); updateLabel();}
     void setSobelScale(double sc){ this->sobel_scale = sc; updateLabel();}
@@ -128,6 +128,7 @@ private:
     std::string view_mode = "";
     float max_variance = 10.0f;
     bool use_consistency = true, use_focuscue = false,
+    fill_up_holes = false,
     use_filter_focus_sml_0 = false, use_filter_focus_bound = false, use_filter_cons_variance = false,
     showCenterColorImage = false;
     double focus_threshold = 16.0f;
