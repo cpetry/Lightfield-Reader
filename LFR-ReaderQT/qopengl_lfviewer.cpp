@@ -9,6 +9,9 @@
 #include <QMediaPlayer>
 #include <QVideoWidget>
 #include <QMessageBox>
+#include <QOpenGLShaderProgram>
+
+#include "depthcostaware.h"
 
 QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0) {
@@ -438,25 +441,64 @@ void QOpenGL_LFViewer::initializeGL(){
 #define PROGRAM_VERTEX_ATTRIBUTE 0
 #define PROGRAM_TEXCOORD_ATTRIBUTE 1
 
+    QMatrix3x3 ccm(meta_infos.cc);
+    double exact_uv = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch);
     double centerx = meta_infos.mla_centerOffset_x / meta_infos.mla_pixelPitch;
     double centery = meta_infos.mla_centerOffset_y / meta_infos.mla_pixelPitch;
-    double radiusx = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_x;
-    double radiusy = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_y;
+    double radiusx = exact_uv * meta_infos.mla_scale_x;
+    double radiusy = exact_uv * meta_infos.mla_scale_y;
     double lenslet_rotation = meta_infos.mla_rotation;
 
-
-    float dy_rot_PerLenslet = -tan(lenslet_rotation) * radiusx;
-    float dx_rot_PerLenslet = tan(lenslet_rotation) * radiusy;
     QPointF centerLens_pos = QPointF(meta_infos.width/2.0f + centerx, meta_infos.height/2.0f - centery);
-    float dy_PerLenslet_row = sqrt(pow(radiusx,2) - pow(radiusx/2.0f,2));
-    float lenslet_matrix[] = {radiusx, dx_rot_PerLenslet,
-                    dy_rot_PerLenslet, dy_PerLenslet_row};
-    QMatrix3x3 ccm(meta_infos.cc);
+    double dy_PerLenslet_row = sqrt(pow(radiusx,2) - pow(radiusx/2.0f,2))* meta_infos.mla_scale_y;
+    //double dy_PerLenslet_row = sqrt(pow(15.0,2) - pow(15.0/2.0f,2))* meta_infos.mla_scale_y;
+
+    float lenslet_matrix[] = {radiusx, 0, 0, dy_PerLenslet_row* meta_infos.mla_scale_y };
+    //float lenslet_matrix[] = {1, 0, 0, dy_PerLenslet_row/15.0};
+
     QMatrix2x2 lenslet_m(lenslet_matrix);
+
+    float R_matrix[] = {std::cos(lenslet_rotation), std::sin(lenslet_rotation),
+                       -std::sin(lenslet_rotation), std::cos(lenslet_rotation)};
+    R_m = QMatrix2x2(R_matrix);
+    //lenslet_m = R_m * lenslet_m;
 
     QMatrix4x4 m;
     m.ortho(-1.0f, +1.0f, +1.0f, -1.0f, 0.0f, 10.0f);
     m.translate(0.0f, 0.0f, -1.0f);
+
+
+    double pix_size = meta_infos.mla_pixelPitch; // in m
+    double lens_size = meta_infos.mla_lensPitch; // in m
+    float N = 15;//lens_size / pix_size; // 15 number of pixels per lenslet
+    int c_pix = 7; // translational pixel offset ?!
+    double c_Mx = meta_infos.mla_centerOffset_x / pix_size;   // optical center offset in mm
+    double c_My = meta_infos.mla_centerOffset_y / pix_size;    // optical center offset in mm
+    double c_mux = -7.3299932479858395e-6 / pix_size;  // mla offset in mm
+    double c_muy = 5.5686492919921878e-6 / pix_size;   // mla offset in mm
+    double d_mu = 3.6999999999999998e-5;  // mla offset in mm
+    double f_M = 0.011542153404246169;    // focal length
+    double exitPupilOffset = 0.11559105682373047; // distance from the pupil to microlens plane
+    double H_data[25];
+    DepthCostAware::calcH(pix_size, lens_size, N, c_pix, c_Mx, c_My,
+                          c_mux, c_muy, d_mu, f_M, exitPupilOffset, D, H_data);
+
+    cv::Mat H_mat = cv::Mat(5,5, cv::DataType<double>::type, H_data);
+
+    float H_dat[16] = {0, static_cast<float>(H_mat.at<double>(0,0)), static_cast<float>(H_mat.at<double>(0,2)), static_cast<float>(H_mat.at<double>(0,4)),
+                       0, static_cast<float>(H_mat.at<double>(1,1)), static_cast<float>(H_mat.at<double>(1,3)), static_cast<float>(H_mat.at<double>(1,4)),
+                       0, static_cast<float>(H_mat.at<double>(2,0)), static_cast<float>(H_mat.at<double>(2,2)), static_cast<float>(H_mat.at<double>(2,4)),
+                       0, static_cast<float>(H_mat.at<double>(3,1)), static_cast<float>(H_mat.at<double>(3,3)), static_cast<float>(H_mat.at<double>(3,4))};
+    H = QMatrix4x4(H_dat);
+
+    cv::Mat H_inv_mat = H_mat.inv();
+    float H_inv_dat[16] = {0, static_cast<float>(H_inv_mat.at<double>(0,0)), static_cast<float>(H_inv_mat.at<double>(0,2)), static_cast<float>(H_inv_mat.at<double>(0,4)),
+                       0, static_cast<float>(H_inv_mat.at<double>(1,1)), static_cast<float>(H_inv_mat.at<double>(1,3)), static_cast<float>(H_inv_mat.at<double>(1,4)),
+                       0, static_cast<float>(H_inv_mat.at<double>(2,0)), static_cast<float>(H_inv_mat.at<double>(2,2)), static_cast<float>(H_inv_mat.at<double>(2,4)),
+                       0, static_cast<float>(H_inv_mat.at<double>(3,1)), static_cast<float>(H_inv_mat.at<double>(3,3)), static_cast<float>(H_inv_mat.at<double>(3,4))};
+    QMatrix4x4 H_inv = QMatrix4x4(H_inv_dat);
+    //H=H.transposed();
+
 
     // FRAMEBUFFER
 
@@ -507,13 +549,18 @@ void QOpenGL_LFViewer::initializeGL(){
     //qDebug() << "LightfieldID" << program->uniformLocation("lightfield");
     program->setUniformValue("matrix", m);
     program->setUniformValue("lenslet_m", lenslet_m);
+    program->setUniformValue("R_m", R_m);
     program->setUniformValue("ccm", ccm.transposed());
     program->setUniformValue("modulationExposureBias", float(meta_infos.modulationExposureBias));
-    program->setUniformValue("lenslet_dim", QPoint(radiusx, radiusy));
-    program->setUniformValue("size_st", QPoint(meta_infos.width/radiusx, meta_infos.height/dy_PerLenslet_row));
+    program->setUniformValue("lenslet_dim", QPointF(radiusx, radiusy));
+    program->setUniformValue("lenslet_coord", QPointF(radiusx, dy_PerLenslet_row));
+    //program->setUniformValue("size_st", QPoint(meta_infos.width/15, meta_infos.height/15));
+    program->setUniformValue("size_st", QPointF(meta_infos.width/radiusx, meta_infos.height/dy_PerLenslet_row * meta_infos.mla_scale_y));
     program->setUniformValue("centerLens_pos", centerLens_pos);
-    program->setUniformValue("tex_dim", QPoint(meta_infos.width, meta_infos.height));
+    program->setUniformValue("tex_dim", QPointF(meta_infos.width, meta_infos.height));
     program->setUniformValue("white_balance", QVector3D(meta_infos.r_bal,1.0f,meta_infos.b_bal));
+    program->setUniformValue("H", H);
+    program->setUniformValue("H_inv", H_inv);
 
     program->enableAttributeArray(PROGRAM_VERTEX_ATTRIBUTE);
     program->enableAttributeArray(PROGRAM_TEXCOORD_ATTRIBUTE);
@@ -587,7 +634,6 @@ void QOpenGL_LFViewer::paintGL(){
     focusprogram->bind();
     focusprogram->setUniformValue("matrix", m_result);
     focusprogram->setUniformValue("lens_pos_view", lens_pos_view);
-    focusprogram->setUniformValue("uv_coord", QPointF(0,0));
     focusprogram->setUniformValue("focus", focus);
     focusprogram->setUniformValue("view_mode", opengl_view_mode);
     focusprogram->setUniformValue("focus_spread", focus_spread);
@@ -640,6 +686,8 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
     program->setUniformValue("option_superresolution", opengl_option_superresolution);
     program->setUniformValue("option_display_mode", opengl_option_display_mode);
     program->setUniformValue("demosaicking_mode", opengl_option_demosaicking_mode);
+    program->setUniformValue("H", H);
+    program->setUniformValue("R_m", R_m);
 
     program->setUniformValue("matrix", m); // m_result, m
     program->setUniformValue("lens_pos_view", lens_pos_view);
@@ -703,11 +751,46 @@ void QOpenGL_LFViewer::mouseMoveEvent(QMouseEvent *event)
 
     if (currentButton == Qt::LeftButton){
         translation = QPointF(translation.x() + dx * 0.004f * orthosize, translation.y() + dy * 0.004f * orthosize);
+        /*cur_u += dx * 0.04f;
+        cur_v += dy * 0.04f;
+        cur_u = std::min(std::max(cur_u, -7.0f), 7.0f);
+        cur_v = std::min(std::max(cur_v, -7.0f), 7.0f);*/
+        lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.01f, lens_pos_view.y() - dy * 0.01f);
     }
     else if(currentButton == Qt::RightButton){
-        //lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.01f, lens_pos_view.y() - dy * 0.01f);
         focus -= dy * 0.01f;
+    }
+    else if(currentButton == Qt::MiddleButton){
+        D -= dy * 0.001f;
         //focus_spread -= dy * 0.01f;
+
+        double pix_size = meta_infos.mla_pixelPitch; // in m
+        double lens_size = meta_infos.mla_lensPitch; // in m
+        float N = 15;//lens_size / pix_size; // 15 number of pixels per lenslet
+        int c_pix = 7; // translational pixel offset ?!
+        double c_Mx = meta_infos.mla_centerOffset_x / pix_size;   // optical center offset in mm
+        double c_My = -meta_infos.mla_centerOffset_y / pix_size;// * meta_infos.mla_scale_y;    // optical center offset in mm
+        double c_mux = -7.3299932479858395e-6;// / pix_size;  // mla offset in mm
+        double c_muy = 5.5686492919921878e-6;// / pix_size;   // mla offset in mm
+        double d_mu = 3.6999999999999998e-5;  // mla offset in mm
+        double f_M = 0.011542153404246169;    // focal length
+        double exitPupilOffset = 0.11559105682373047; // distance from the pupil to microlens plane
+        double H_data[25];
+        DepthCostAware::calcH(pix_size, lens_size, N, c_pix, c_Mx, c_My,
+                              c_mux, c_muy, d_mu, f_M, exitPupilOffset, D, H_data);
+
+        cv::Mat H_inv = cv::Mat(5,5, cv::DataType<double>::type, H_data);
+        //cv::transpose(H_inv, H_inv);
+        //H_inv = H_inv.inv();
+
+
+        float H_dat[16] = {0, static_cast<float>(H_inv.at<double>(0,0)), static_cast<float>(H_inv.at<double>(0,2)), static_cast<float>(H_inv.at<double>(0,4)),
+                           0, static_cast<float>(H_inv.at<double>(1,1)), static_cast<float>(H_inv.at<double>(1,3)), static_cast<float>(H_inv.at<double>(1,4)),
+                           0, static_cast<float>(H_inv.at<double>(2,0)), static_cast<float>(H_inv.at<double>(2,2)), static_cast<float>(H_inv.at<double>(2,4)),
+                           0, static_cast<float>(H_inv.at<double>(3,1)), static_cast<float>(H_inv.at<double>(3,3)), static_cast<float>(H_inv.at<double>(3,4))};
+
+        H = QMatrix4x4(H_dat);
+
     }
     lastPos = event->pos();
     if (_capture == NULL || !_capture->isOpened())

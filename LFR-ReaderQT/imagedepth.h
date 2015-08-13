@@ -16,47 +16,6 @@ class ImageDepth : public QObject
     Q_OBJECT
 
 public:
-    ImageDepth(MyGraphicsView* view){
-        this->view = view;
-    }
-    ~ImageDepth();
-
-
-public slots:
-    void updateLabel();
-    void loadImage();
-    void calcFocusVolume();
-    void calcConsistencyVolume();
-
-    void setConsistency(bool v) { this->use_consistency = v;  updateLabel();}
-    void setFocusCue(bool v) { this->use_focuscue = v;  updateLabel();}
-    void setFocusThreshold(double v) { this->focus_threshold = v;}
-    void setFilterFocusSml0(bool v) { this->use_filter_focus_sml_0 = v;  updateLabel();}
-    void setFilterFocusBound(bool v) { this->use_filter_focus_bound = v;  updateLabel();}
-    void setFilterConsVariance(bool v) { this->use_filter_cons_variance = v;  updateLabel();}
-    void setMaxVariance(double mv){ this->max_variance = mv; updateLabel();}
-    void setShowCenterColorImage(bool v) { this->showCenterColorImage = v;  updateLabel();}
-    void setFillUpHoles(bool v) { this->fill_up_holes = v;  updateLabel();}
-
-    void setViewMode(QString v){ this->view_mode = v.toStdString(); updateLabel();}
-    void setSobelScale(double sc){ this->sobel_scale = sc; updateLabel();}
-    void setSobelKernel(int sk){ this->sobel_k_size = sk; updateLabel();}
-    void setGaussSigma(double gs){ this->gauss_sigma = gs; updateLabel();}
-    void setGaussKernel(int gk){ this->gauss_k_size = gk; updateLabel();}
-
-
-private:
-    void costAwareDepthMapEstimation();
-    cv::Mat costAware_createCostVolume(const int size_i, const int size_j);
-    cv::Mat costAware_createFocusVolume(const int size_u, const int size_v);
-    cv::Mat createFocusedImage(const cv::Mat image, const int size_u, const int size_v, const float shift);
-    cv::Mat consistancyCost, focusCost;
-
-    void stereoLikeTaxonomy();
-    cv::Mat generateDepthMapFromDisparity(cv::Mat dis);
-    void generateFromUVST(bool show_epi = false);
-    std::pair<cv::Mat, cv::Mat> calculateDisparityFromEPI(cv::Mat epi, std::string result = "");
-
     static QImage EveryMat2QImageCol(const cv::Mat &src) {
             double scale = 255.0;
             QImage dest(src.cols, src.rows, QImage::Format_ARGB32);
@@ -117,22 +76,37 @@ private:
         return dest;
     }
 
+public slots:
+    void loadImage();
+    void updateLabel();
+
+
+    void setViewMode(QString v){ this->view_mode = v.toStdString(); updateLabel();}
+    void setSobelScale(double sc){ this->sobel_scale = sc; updateLabel();}
+    void setSobelKernel(int sk){ this->sobel_k_size = sk; updateLabel();}
+    void setGaussSigma(double gs){ this->gauss_sigma = gs; updateLabel();}
+    void setGaussKernel(int gk){ this->gauss_k_size = gk; updateLabel();}
+
+
     static cv::Mat translateImg(cv::Mat &img, int offsetx, int offsety){
         cv::Mat trans_mat = (cv::Mat_<double>(2,3) << 1, 0, offsetx, 0, 1, offsety);
         cv::warpAffine(img,img,trans_mat,img.size());
         return trans_mat;
     }
 
+protected:
     MyGraphicsView* view;
     cv::Mat input_img, output_img;
-    std::string view_mode = "";
-    float max_variance = 10.0f;
-    bool use_consistency = true, use_focuscue = false,
-    fill_up_holes = false,
-    use_filter_focus_sml_0 = false, use_filter_focus_bound = false, use_filter_cons_variance = false,
-    showCenterColorImage = false;
-    double focus_threshold = 16.0f;
     const int size_d = 10;
+
+private:
+    virtual void calculateDepth() = 0;
+    void stereoLikeTaxonomy();
+    cv::Mat generateDepthMapFromDisparity(cv::Mat dis);
+    void generateFromUVST(bool show_epi = false);
+    std::pair<cv::Mat, cv::Mat> calculateDisparityFromEPI(cv::Mat epi, std::string result = "");
+
+    std::string view_mode = "";
 
     int sobel_k_size = 3;
     float sobel_scale = 1.0f;

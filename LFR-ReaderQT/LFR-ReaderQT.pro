@@ -37,7 +37,9 @@ SOURCES += main.cpp \
     reconstruction3d.cpp \
     imagedepth.cpp \
     lfp_raw_view.cpp \
-    calibration.cpp
+    calibration.cpp \
+    depthfromfocus.cpp \
+    depthcostaware.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
@@ -46,7 +48,9 @@ HEADERS  += mainwindow.h \
     reconstruction3d.h \
     imagedepth.h \
     lfp_raw_view.h \
-    calibration.h
+    calibration.h \
+    depthfromfocus.h \
+    depthcostaware.h
 
 FORMS    += mainwindow.ui
 

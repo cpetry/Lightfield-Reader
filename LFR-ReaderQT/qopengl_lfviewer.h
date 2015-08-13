@@ -55,6 +55,16 @@ public slots:
     void toggleCCM(bool v){ opengl_option_ccm = v;  update();}
     void toggleGamma(bool v){ opengl_option_gamma = v;  update();}
     void toggleSuperResolution(bool v){ opengl_option_superresolution = v; update();}
+    void setRotation(double r){
+
+        float R_matrix[] = {std::cos(r), std::sin(r),
+                           -std::sin(r), std::cos(r)};
+        R_m = QMatrix2x2(R_matrix);
+        program->bind();
+        program->setUniformValue("R_m", R_m);
+
+        update();
+    }
     void renderDemosaic(bool v) {opengl_option_is_demosaicked = v; update();}
     void setDemosaicingMode(int v) {opengl_option_demosaicking_mode = v; update();}
     void renderFrames(bool v) {opengl_option_render_frames = v; update();}
@@ -116,6 +126,8 @@ private:
     float orthosize = 1.0f;
     QPointF translation = QPointF(0.0f, 0.0f);
     QPointF lens_pos_view = QPointF(0.0f, 0.0f);
+    QMatrix4x4 H;
+    QMatrix2x2 R_m;
 
     int tex_index = 0;
     int time_count = 0;
@@ -139,6 +151,7 @@ private:
     bool is_video = false, is_imagelist = false;
     bool video_playing = false;
     int opengl_option_demosaicking_mode = 1;
+    float D = 22;
 
 signals:
     void closed();

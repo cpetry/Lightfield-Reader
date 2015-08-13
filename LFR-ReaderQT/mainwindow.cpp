@@ -21,6 +21,8 @@
 
 #include "reconstruction3d.h"
 #include "imagedepth.h"
+#include "depthfromfocus.h"
+#include "depthcostaware.h"
 #include "calibration.h"
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -45,7 +47,9 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionOpen_Image_Sequence, &QAction::triggered, this, &MainWindow::chooseVideoFromImageSequence);
     connect(ui->actionCreate_3DScene, &QAction::triggered, this, &MainWindow::chooseCreate3DScene);
     connect(ui->actionGenerate_DepthMap, &QAction::triggered, this, &MainWindow::chooseGenerate_DepthMap);
+
     connect(ui->actionCreateCalibrationImage, &QAction::triggered, this, &MainWindow::chooseCreateCalibrationImage);
+    connect(ui->actionCho_EstimateCenterPositions, &QAction::triggered, this, &MainWindow::chooseCho_EstimateCenterPositions);
 
     //chooseLFImage();
 }
@@ -102,6 +106,20 @@ void MainWindow::chooseCreateCalibrationImage(){
 
         //cv::imwrite("calibrated_img_demosaiced.png", demosaiced_image);
 
+    }
+}
+
+void MainWindow::chooseCho_EstimateCenterPositions(){
+    // Display dialog so the user can select a file
+    QString filename = QFileDialog::getOpenFileName(this,
+                                            QString("Open White Image"),
+                                            QDir::currentPath(),
+                                            QString("White Image(*.PNG *.JPG)"));
+
+    if (!filename.isEmpty()){
+
+        float rotationAngle = calibration::cho_EstimateRotation(filename);
+        qDebug() << "Rotation Angle: " << rotationAngle;
     }
 }
 
@@ -518,6 +536,12 @@ void MainWindow::chooseLFImage(){
         colorcorrect_options_layout->addWidget(checkGamma);
         buttons_layout->addWidget(colorcorrect_options,1,2);
 
+        QDoubleSpinBox* rotation = new QDoubleSpinBox();
+        rotation->setDecimals(15);
+        rotation->setValue(reader.meta_infos.mla_rotation);
+        connect( rotation, SIGNAL(valueChanged(double)), opengl_viewer, SLOT(setRotation(double)) );
+        buttons_layout->addWidget(rotation,2,1);
+
         QWidget* display_options = new QWidget();
         QVBoxLayout* display_options_layout = new QVBoxLayout();
         display_options->setLayout(display_options_layout);
@@ -542,15 +566,15 @@ void MainWindow::chooseLFImage(){
         display_options_layout->addWidget(display);
         display_options_layout->addWidget(uvmode);
         display_options_layout->addWidget(render);
-        buttons_layout->addWidget(display_options,2,1);
+        buttons_layout->addWidget(display_options,3,1);
 
         QPushButton *saveImage = new QPushButton("SaveImage");
         QPushButton *saveRaw = new QPushButton("SaveRaw");
 
         connect( saveImage, SIGNAL(clicked()), opengl_viewer, SLOT(saveImage()) );
         connect( saveRaw, SIGNAL(clicked()), opengl_viewer, SLOT(saveRaw()) );
-        buttons_layout->addWidget(saveImage,3,1);
-        buttons_layout->addWidget(saveRaw,3,2);
+        buttons_layout->addWidget(saveImage,4,1);
+        buttons_layout->addWidget(saveRaw,4,2);
         view_layout->addWidget(buttons_widget);
         opengl_viewer->update();
 
@@ -818,74 +842,135 @@ void MainWindow::chooseGenerate_DepthMap(){
 
     tabWidget->clear();
 
-    QHBoxLayout* view_layout = new QHBoxLayout();
-    QWidget* view_widget = new QWidget();
-    view_widget->setLayout(view_layout);
-    MyGraphicsView* view = new MyGraphicsView(this);
+    /////////////////////////////
+    /// Depth From Focus
+    ///
+    {
+        QHBoxLayout* view_layout = new QHBoxLayout();
+        QWidget* from_focus_widget = new QWidget();
+        from_focus_widget->setLayout(view_layout);
+        MyGraphicsView* view = new MyGraphicsView(this);
 
-    view_layout->addWidget(view);
-    tabWidget->addTab(view_widget,"Depth map");
+        view_layout->addWidget(view);
 
-    ImageDepth* id = new ImageDepth(view);
+        DepthFromFocus* dff = new DepthFromFocus(view);
 
-    QGridLayout* buttons_layout = new QGridLayout();
-    QWidget* buttons_widget = new QWidget();
-    buttons_widget->setMaximumSize(300,1000);
-    buttons_widget->setLayout(buttons_layout);
+        QGridLayout* buttons_layout = new QGridLayout();
+        QWidget* buttons_widget = new QWidget();
+        buttons_widget->setMaximumSize(300,1000);
+        buttons_widget->setLayout(buttons_layout);
 
-    QPushButton* load = new QPushButton("Load Image");
-    connect(load, SIGNAL(clicked()), id, SLOT(loadImage()));
-    buttons_layout->addWidget(load,0,1);
+        QPushButton* load = new QPushButton("Load Image");
+        connect(load, SIGNAL(clicked()), dff, SLOT(loadImage()));
+        buttons_layout->addWidget(load,0,1);
 
-    QCheckBox* show_center_color_image = new QCheckBox("Show Center Image");
-    connect(show_center_color_image, SIGNAL(clicked(bool)), id, SLOT(setShowCenterColorImage(bool)));
-    buttons_layout->addWidget(show_center_color_image,1,1);
+        QCheckBox* check_max_focus = new QCheckBox("Use Max Focus");
+        connect(check_max_focus, SIGNAL(clicked(bool)), dff, SLOT(setUseMaxFocus(bool)));
+        check_max_focus->setChecked(false);
+        buttons_layout->addWidget(check_max_focus,1,1);
+        QCheckBox* check_max_variance = new QCheckBox("Use Max Variance");
+        check_max_variance->setChecked(false);
+        connect(check_max_variance, SIGNAL(clicked(bool)), dff, SLOT(setUseMaxVariance(bool)));
+        buttons_layout->addWidget(check_max_variance,2,1);
+
+        QDoubleSpinBox* max_focus_threshold = new QDoubleSpinBox();
+        max_focus_threshold->setValue(5000.0);
+        max_focus_threshold->setMaximum(10000.0);
+        connect(max_focus_threshold, SIGNAL(valueChanged(double)), dff, SLOT(setFocusThreshold(double)));
+        buttons_layout->addWidget(max_focus_threshold,1,2);
+
+        QDoubleSpinBox* max_variance = new QDoubleSpinBox();
+        max_variance->setValue(0.0);
+        max_variance->setMaximum(50.0);
+        connect(max_variance, SIGNAL(valueChanged(double)), dff, SLOT(setMaxVariance(double)));
+        buttons_layout->addWidget(max_variance,2,2);
 
 
-    QDoubleSpinBox* threshold = new QDoubleSpinBox();
-    threshold->setValue(16.0);
-    threshold->setMaximum(100.0);
-    connect(threshold, SIGNAL(valueChanged(double)), id, SLOT(setFocusThreshold(double)));
-    buttons_layout->addWidget(threshold,1,2);
-
-    QPushButton* calc_cons = new QPushButton("Calculate Consistency Volume");
-    connect(calc_cons, SIGNAL(clicked()), id, SLOT(calcConsistencyVolume()));
-    buttons_layout->addWidget(calc_cons,2,1);
-
-    QPushButton* calc_focus = new QPushButton("Calculate Focus Volume");
-    connect(calc_focus, SIGNAL(clicked()), id, SLOT(calcFocusVolume()));
-    buttons_layout->addWidget(calc_focus,2,2);
+        view_layout->addWidget(buttons_widget);
 
 
-    QCheckBox* check_consistency = new QCheckBox("Consistency Cue");
-    check_consistency->setChecked(true);
-    connect(check_consistency, SIGNAL(clicked(bool)), id, SLOT(setConsistency(bool)));
-    buttons_layout->addWidget(check_consistency,3,1);
-    QCheckBox* check_focus = new QCheckBox("Focus Cue");
-    check_focus->setChecked(true);
-    connect(check_focus, SIGNAL(clicked(bool)), id, SLOT(setFocusCue(bool)));
-    buttons_layout->addWidget(check_focus,3,2);
-    QCheckBox* check_filter_focus_sml_0 = new QCheckBox("filter Focus SML 0");
-    connect(check_filter_focus_sml_0, SIGNAL(clicked(bool)), id, SLOT(setFilterFocusSml0(bool)));
-    check_filter_focus_sml_0->setChecked(true);
-    buttons_layout->addWidget(check_filter_focus_sml_0,4,1);
-    QCheckBox* check_filter_focus_bound = new QCheckBox("filter Focus Bound");
-    check_filter_focus_bound->setChecked(true);
-    connect(check_filter_focus_bound, SIGNAL(clicked(bool)), id, SLOT(setFilterFocusBound(bool)));
-    buttons_layout->addWidget(check_filter_focus_bound,4,2);
-    QCheckBox* check_filter_cons_variance = new QCheckBox("filter Cons Variance");
-    check_filter_cons_variance->setChecked(true);
-    connect(check_filter_cons_variance, SIGNAL(clicked(bool)), id, SLOT(setFilterConsVariance(bool)));
-    buttons_layout->addWidget(check_filter_cons_variance,5,1);
-    QDoubleSpinBox* max_variance = new QDoubleSpinBox();
-    max_variance->setValue(10.0);
-    max_variance->setMaximum(1000.0);
-    connect(max_variance, SIGNAL(valueChanged(double)), id, SLOT(setMaxVariance(double)));
-    buttons_layout->addWidget(max_variance,5,2);
-    QCheckBox* check_fill_holes = new QCheckBox("fill up holes");
-    check_fill_holes->setChecked(true);
-    connect(check_fill_holes, SIGNAL(clicked(bool)), id, SLOT(setFillUpHoles(bool)));
-    buttons_layout->addWidget(check_fill_holes,6,1);
+        tabWidget->addTab(from_focus_widget,"Depth From Focus");
+    }
+
+    /////////////////////////////
+    /// Depth Cost Aware
+    ///
+
+    {
+        QHBoxLayout* view_layout = new QHBoxLayout();
+        QWidget* cost_aware_widget = new QWidget();
+        cost_aware_widget->setLayout(view_layout);
+        MyGraphicsView* view = new MyGraphicsView(this);
+
+        view_layout->addWidget(view);
+
+        DepthCostAware* dca = new DepthCostAware(view);
+
+        QGridLayout* buttons_layout = new QGridLayout();
+        QWidget* buttons_widget = new QWidget();
+        buttons_widget->setMaximumSize(300,1000);
+        buttons_widget->setLayout(buttons_layout);
+
+        QPushButton* load = new QPushButton("Load Image");
+        connect(load, SIGNAL(clicked()), dca, SLOT(loadImage()));
+        buttons_layout->addWidget(load,0,1);
+
+        QCheckBox* show_center_color_image = new QCheckBox("Show Center Image");
+        connect(show_center_color_image, SIGNAL(clicked(bool)), dca, SLOT(setShowCenterColorImage(bool)));
+        buttons_layout->addWidget(show_center_color_image,1,1);
+
+
+        QDoubleSpinBox* threshold = new QDoubleSpinBox();
+        threshold->setValue(16.0);
+        threshold->setMaximum(100.0);
+        connect(threshold, SIGNAL(valueChanged(double)), dca, SLOT(setFocusThreshold(double)));
+        buttons_layout->addWidget(threshold,1,2);
+
+        QPushButton* calc_cons = new QPushButton("Calculate Consistency Volume");
+        connect(calc_cons, SIGNAL(clicked()), dca, SLOT(calcConsistencyVolume()));
+        buttons_layout->addWidget(calc_cons,2,1);
+
+        QPushButton* calc_focus = new QPushButton("Calculate Focus Volume");
+        connect(calc_focus, SIGNAL(clicked()), dca, SLOT(calcFocusVolume()));
+        buttons_layout->addWidget(calc_focus,2,2);
+
+
+        QCheckBox* check_consistency = new QCheckBox("Consistency Cue");
+        check_consistency->setChecked(true);
+        connect(check_consistency, SIGNAL(clicked(bool)), dca, SLOT(setConsistency(bool)));
+        buttons_layout->addWidget(check_consistency,3,1);
+        QCheckBox* check_focus = new QCheckBox("Focus Cue");
+        check_focus->setChecked(true);
+        connect(check_focus, SIGNAL(clicked(bool)), dca, SLOT(setFocusCue(bool)));
+        buttons_layout->addWidget(check_focus,3,2);
+        QCheckBox* check_filter_focus_sml_0 = new QCheckBox("filter Focus SML 0");
+        connect(check_filter_focus_sml_0, SIGNAL(clicked(bool)), dca, SLOT(setFilterFocusSml0(bool)));
+        check_filter_focus_sml_0->setChecked(true);
+        buttons_layout->addWidget(check_filter_focus_sml_0,4,1);
+        QCheckBox* check_filter_focus_bound = new QCheckBox("filter Focus Bound");
+        check_filter_focus_bound->setChecked(true);
+        connect(check_filter_focus_bound, SIGNAL(clicked(bool)), dca, SLOT(setFilterFocusBound(bool)));
+        buttons_layout->addWidget(check_filter_focus_bound,4,2);
+        QCheckBox* check_filter_cons_variance = new QCheckBox("filter Cons Variance");
+        check_filter_cons_variance->setChecked(true);
+        connect(check_filter_cons_variance, SIGNAL(clicked(bool)), dca, SLOT(setFilterConsVariance(bool)));
+        buttons_layout->addWidget(check_filter_cons_variance,5,1);
+        QDoubleSpinBox* max_variance = new QDoubleSpinBox();
+        max_variance->setValue(10.0);
+        max_variance->setMaximum(1000.0);
+        connect(max_variance, SIGNAL(valueChanged(double)), dca, SLOT(setMaxVariance(double)));
+        buttons_layout->addWidget(max_variance,5,2);
+        QCheckBox* check_fill_holes = new QCheckBox("fill up holes");
+        check_fill_holes->setChecked(true);
+        connect(check_fill_holes, SIGNAL(clicked(bool)), dca, SLOT(setFillUpHoles(bool)));
+        buttons_layout->addWidget(check_fill_holes,6,1);
+
+        view_layout->addWidget(buttons_widget);
+
+        //tabWidget->addTab(view_widget,"Depth Stereo Taxonomy");
+        tabWidget->addTab(cost_aware_widget,"Depth Cost Aware");
+    }
+    //QImage depth = imagedepth::generate();
 
     /*
     QComboBox* cb = new QComboBox(this);
@@ -923,10 +1008,4 @@ void MainWindow::chooseGenerate_DepthMap(){
     buttons_layout->addWidget(gauss_sigma,4,1);
     buttons_layout->addWidget(gauss_kernel,4,2);
     */
-    view_layout->addWidget(buttons_widget);
-
-
-    tabWidget->addTab(view_widget,"View");
-
-    //QImage depth = imagedepth::generate();
 }

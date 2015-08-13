@@ -29,7 +29,6 @@
     </property>
     <addaction name="actionLFP"/>
     <addaction name="actionExtractLFFolder"/>
-    <addaction name="actionCreateCalibrationImage"/>
    </widget>
    <widget class="QMenu" name="menuVideo">
     <property name="title">
@@ -53,7 +52,15 @@
     <addaction name="actionCreate_3DScene"/>
     <addaction name="actionGenerate_DepthMap"/>
    </widget>
+   <widget class="QMenu" name="menuDecoding">
+    <property name="title">
+     <string>Decoding</string>
+    </property>
+    <addaction name="actionCreateCalibrationImage"/>
+    <addaction name="actionCho_EstimateCenterPositions"/>
+   </widget>
    <addaction name="menuLoad"/>
+   <addaction name="menuDecoding"/>
    <addaction name="menuImage"/>
    <addaction name="menuVideo"/>
    <addaction name="menu3D_Reconstruction"/>
@@ -115,6 +122,11 @@
   <action name="actionCreateCalibrationImage">
    <property name="text">
     <string>CreateCalibrationImage</string>
+   </property>
+  </action>
+  <action name="actionCho_EstimateCenterPositions">
+   <property name="text">
+    <string>Cho_EstimateCenterPositions</string>
    </property>
   </action>
  </widget>

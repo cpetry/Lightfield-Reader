@@ -7,10 +7,14 @@
 uniform sampler2D lightfield;
 uniform mediump vec2 tex_dim;
 uniform mediump vec2 lenslet_dim;
+uniform mediump vec2 lenslet_coord;
 uniform mediump vec2 size_st;
 uniform mediump vec3 white_balance;
 uniform mediump vec2 centerLens_pos;
 uniform mediump mat2 lenslet_m;
+uniform mediump mat2 R_m;
+uniform highp mat4 H;
+uniform highp mat4 H_inv;
 float focus_radius = 15;
 uniform mediump float focus = 0;
 uniform mediump mat3 ccm;
@@ -266,67 +270,239 @@ vec4 colorFromBarycentricCoords(vec2 p, vec2 a, vec2  b, vec2 c){
             return vec4(0,0,0,1);
 }
 
-// get color from st uv coordinates
-vec4 recalcPosAtSTUV(vec2 st, vec2 uv){
+/* barycentric coordinates
+float sty_perc = abs(st.y - int(st.y));
+float stx_perc = abs(st.x - int(st.x));
+//if (int(st.y) % 2 == 1)
+//    stx_perc += 0.5;
+
+if (stx_perc > 0.5){
+    stx_perc -= 0.5;
+    sty_perc = 1-sty_perc;
+}
+if (int(st.y) % 2 == 1){
+    stx_perc = abs(stx_perc-0.5);
+    sty_perc = 1-sty_perc;
+}
+vec2 pixel_pos = (lenslet_m * st);
+
+if (st.x > 0 && st.y > 0){
+    if(atan(sty_perc, stx_perc) < PI_3){
+        vec2 a = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) + vec2(0.5,0)) + uv)) / tex_dim;
+        vec2 b = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y))) + uv)) / tex_dim;
+        vec2 c = (centerLens_pos + (lenslet_m * (vec2(int(st.x)+1,int(st.y))) + uv)) / tex_dim;
+        vec2 p = (centerLens_pos + pixel_pos) / tex_dim;
+        fragcol = colorFromBarycentricCoords(p, a, b, c);
+    }
+    else{
+        vec2 a = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) + vec2(0.5,0)) + uv)) / tex_dim;
+        vec2 b = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) - vec2(0.5,0)) + uv)) / tex_dim;
+        vec2 c = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y))) + uv)) / tex_dim;
+        vec2 p = (centerLens_pos + pixel_pos) / tex_dim;
+        fragcol = colorFromBarycentricCoords(p, a, b, c);
+    }
+}
+else
+    fragcol = vec4(0,0,0,1);*/
+
+vec4 recalcPosAtUVST_Cho(vec2 uv, vec2 st){
     vec4 fragcol=vec4(0,0,0,1);
+    vec2 exact = vec2(0.5,0.5);
+    //return computeColorAt(texc.st);
+    vec2 img_pos = vec2(1.0,1.0) - texc.st; // invert
+    img_pos *= size_st;
+    //vec2 hex = /*size_st/2.0*/ - img_pos * 2; // from center + flip
+    vec2 hex = ivec2(img_pos*2); // exact st position
+    //hex += centerLens_pos * lenslet_dim;
+    //hex = R_m * hex;
+    //hex = lenslet_m * R_m * hex;
+
     if(is_raw){
-        /* barycentric coordinates
-        float sty_perc = abs(st.y - int(st.y));
-        float stx_perc = abs(st.x - int(st.x));
-        //if (int(st.y) % 2 == 1)
-        //    stx_perc += 0.5;
-
-        if (stx_perc > 0.5){
-            stx_perc -= 0.5;
-            sty_perc = 1-sty_perc;
+        if(int(hex.y) % 4 == 0){
+            //return vec4(0,0,0,1);
+            if (int(hex.x) % 2 == 0){ // 1
+                //return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1 + exact) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2 + exact) / tex_dim;
+                vec2 texel_pos3 = (centerLens_pos + img_pos3 + exact) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3;
+            }
+            else{                    // 2
+                //return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1 + exact) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2 + exact) / tex_dim;
+                vec2 texel_pos3 = (centerLens_pos + img_pos3 + exact) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3;
+            }
         }
-        if (int(st.y) % 2 == 1){
-            stx_perc = abs(stx_perc-0.5);
-            sty_perc = 1-sty_perc;
+        else if(int(hex.y) % 4 == 1){
+            if (int(hex.x) % 2 == 0){// 3
+                //return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2;
+            }
+            else{                    // 4
+                //return vec4(0,0,0,1);
+                img_pos = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
+                vec2 texel_pos1 = ivec2(centerLens_pos + img_pos) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1));
+            }
         }
-        vec2 pixel_pos = (lenslet_m * st);
-
-        if (st.x > 0 && st.y > 0){
-            if(atan(sty_perc, stx_perc) < PI_3){
-                vec2 a = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) + vec2(0.5,0)) + uv)) / tex_dim;
-                vec2 b = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y))) + uv)) / tex_dim;
-                vec2 c = (centerLens_pos + (lenslet_m * (vec2(int(st.x)+1,int(st.y))) + uv)) / tex_dim;
-                vec2 p = (centerLens_pos + pixel_pos) / tex_dim;
-                fragcol = colorFromBarycentricCoords(p, a, b, c);
+        else if(int(hex.y) % 4 == 2){
+            if (int(hex.x) % 2 == 0){
+                //return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
+                vec2 texel_pos3 = (centerLens_pos + img_pos3) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3;
             }
             else{
-                vec2 a = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) + vec2(0.5,0)) + uv)) / tex_dim;
-                vec2 b = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y)+1) - vec2(0.5,0)) + uv)) / tex_dim;
-                vec2 c = (centerLens_pos + (lenslet_m * (vec2(int(st.x),int(st.y))) + uv)) / tex_dim;
-                vec2 p = (centerLens_pos + pixel_pos) / tex_dim;
-                fragcol = colorFromBarycentricCoords(p, a, b, c);
+                //return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
+                vec2 texel_pos3 = (centerLens_pos + img_pos3) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3;
             }
         }
-        else
-            fragcol = vec4(0,0,0,1);*/
+        else if(int(hex.y) % 4 == 3){
+            if (int(hex.x) % 2 == 0){
+                //return vec4(0,0,0,1);
+                img_pos = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 texel_pos1 = ivec2(centerLens_pos + img_pos) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1));
+            }
+            else{
+                //return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2;
+            }
+        }
+
+
+    }
+    return fragcol;
+}
+
+// get color from st uv coordinates
+vec4 recalcPosAtUVST(vec2 uv, vec2 st){
+    vec4 fragcol=vec4(0,0,0,1);
+    if(is_raw){
+
 
         if(int(st.y) % 2 == 1){
-            vec2 texel_pos1 = (centerLens_pos + (lenslet_m * (st + vec2(0.5,0)) + uv)) / tex_dim;
-            vec2 texel_pos2 = (centerLens_pos + (lenslet_m * (st - vec2(0.5,0)) + uv)) / tex_dim;
-            fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2;
+            vec2 st_ = st - vec2(0.5,0);// + vec2(11,10);
+            //st_ = lenslet_m/14.2857 * st_;
+            //st_ = lenslet_m * st_;
+            //st_ = R_m * st_;
+            vec4 ijkl = vec4(H[1][0]*uv.x + H[2][0]*st_.x + H[3][0]*1,
+                        H[1][1]*uv.y + H[2][1]*st_.y + H[3][1]*1,
+                        H[1][2]*uv.x + H[2][2]*st_.x + H[3][2]*1,
+                        H[1][3]*uv.y + H[2][3]*st_.y + H[3][3]*1);
+            /*uvst = vec4(H[0][1]*uv.x + H[0][2]*st_.x + H[0][3]*1,
+                             H[1][1]*uv.y + H[1][2]*st_.y + H[1][3]*1,
+                             H[2][1]*uv.x + H[2][2]*st_.x + H[2][3]*1,
+                             H[3][1]*uv.y + H[3][2]*st_.y + H[3][3]*1);*/
+            ijkl.xy = lenslet_m * ijkl.xy;
+            ijkl.xy = R_m * ijkl.xy;
+            //vec2 texel_pos2 = (centerLens_pos + (ijkl.xy + ijkl.zw)) / tex_dim;
+            vec2 texel_pos2 = (centerLens_pos + (lenslet_m*R_m * st_ + uv)) / tex_dim;
+            //fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2;
+            fragcol = (computeColorAt(texel_pos2));// + computeColorAt(texel_pos2)) / 2;
         }
         else{
-            vec2 pixel_pos = (lenslet_m * st);
-            pixel_pos += uv;
-            vec2 texel_pos = (centerLens_pos + pixel_pos) / tex_dim;
+            st = st;// + vec2(11,10);
+            //st = lenslet_m/14.2857 * st;
+            //st = lenslet_m * st;
+            //st = R_m * st;
+            vec4 ijkl = vec4(H[1][0]*uv.x + H[2][0]*st.x + H[3][0]*1,
+                             H[1][1]*uv.y + H[2][1]*st.y + H[3][1]*1,
+                             H[1][2]*uv.x + H[2][2]*st.x + H[3][2]*1,
+                             H[1][3]*uv.y + H[2][3]*st.y + H[3][3]*1);
+            /*vec4 uvst = vec4(H[0][1]*uv.x + H[0][2]*st.x + H[0][3]*1,
+                             H[1][1]*uv.y + H[1][2]*st.y + H[1][3]*1,
+                             H[2][1]*uv.x + H[2][2]*st.x + H[2][3]*1,
+                             H[3][1]*uv.y + H[3][2]*st.y + H[3][3]*1);*/
+            ijkl.xy = lenslet_m * ijkl.xy;
+            ijkl.xy = R_m * ijkl.xy;
+            //vec2 texel_pos = (centerLens_pos + (ijkl.xy + ijkl.zw)) / tex_dim;
+            vec2 texel_pos = (centerLens_pos + (lenslet_m*R_m * st + uv)) / tex_dim;
             fragcol = computeColorAt(texel_pos);
         }
     }
     else{
         if(int(st.y) % 2 == 1){
-            vec2 texel_pos1 = (centerLens_pos + (lenslet_m * (st + vec2(0.5,0)) + uv)) / tex_dim;
-            vec2 texel_pos2 = (centerLens_pos + (lenslet_m * (st - vec2(0.5,0)) + uv)) / tex_dim;
+            vec2 st_ = st + vec2(0.5,0);
+            /*vec4 uvst = vec4(H[1][0]*kl.x + H[2][0]*ij_.x + H[3][0]*1,
+                             H[1][1]*kl.y + H[2][1]*ij_.y + H[3][1]*1,
+                             H[1][2]*kl.x + H[2][2]*ij_.x + H[3][2]*1,
+                             H[1][3]*kl.y + H[2][3]*ij_.y + H[3][3]*1);
+            uvst.st *= lenslet_m;
+            //vec2 texel_pos1 = (centerLens_pos + (lenslet_m * (uvst.st) + uvst.wz)) / tex_dim;*/
+            vec2 texel_pos1 = (centerLens_pos + (R_m*lenslet_m * st + uv)) / tex_dim;
+
+            st_ = st - vec2(0.5,0);
+            /*uvst = vec4(H[1][0]*kl.x + H[2][0]*ij_.x + H[3][0]*1,
+                        H[1][1]*kl.y + H[2][1]*ij_.y + H[3][1]*1,
+                        H[1][2]*kl.x + H[2][2]*ij_.x + H[3][2]*1,
+                        H[1][3]*kl.y + H[2][3]*ij_.y + H[3][3]*1);
+            uvst.st *= uvst.st;
+            //vec2 texel_pos2 = (centerLens_pos + (uvst.st + uvst.wz)) / tex_dim;*/
+            vec2 texel_pos2 = (centerLens_pos + (R_m*lenslet_m * st + uv)) / tex_dim;
             fragcol = (texture2D(lightfield, texel_pos1) + texture2D(lightfield, texel_pos2)) / 2;
         }
         else{
-            vec2 pixel_pos = (lenslet_m * st);
-            pixel_pos += uv;
-            vec2 texel_pos = (centerLens_pos + pixel_pos) / tex_dim;
+            /*vec4 uvst = vec4(H[1][0]*kl.x + H[2][0]*ij.x + H[3][0]*1,
+                             H[1][1]*kl.y + H[2][1]*ij.y + H[3][1]*1,
+                             H[1][2]*kl.x + H[2][2]*ij.x + H[3][2]*1,
+                             H[1][3]*kl.y + H[2][3]*ij.y + H[3][3]*1);
+            uvst.st = lenslet_m * uvst.st;
+            //vec2 texel_pos = (centerLens_pos + (uvst.st + uvst.wz)) / tex_dim;*/
+            vec2 texel_pos = (centerLens_pos + (R_m*lenslet_m * st + uv)) / tex_dim;
+            fragcol = texture2D(lightfield, texel_pos);
+        }
+    }
+    return fragcol;
+}
+
+vec4 recalcPosAtIJKL(vec2 ij, vec2 kl){
+    vec4 fragcol=vec4(0,0,0,1);
+    if(is_raw){
+        if(int(kl.y) % 2 == 1){
+            vec2 texel_pos1 = (centerLens_pos + (lenslet_m*R_m * (kl + vec2(0.5,0)) + ij)) / tex_dim;
+            //vec2 texel_pos2 = (centerLens_pos + (R_m*lenslet_m*lenslet_dim * (kl - vec2(0.5,0)) + ij)) / tex_dim;
+            fragcol = (computeColorAt(texel_pos1));// + computeColorAt(texel_pos2)) / 2;
+        }
+        else{
+            vec2 texel_pos = (centerLens_pos + (lenslet_m*R_m * kl + ij)) / tex_dim;
+            fragcol = computeColorAt(texel_pos);
+        }
+    }
+    else{
+        if(int(kl.y) % 2 == 1){
+            vec2 texel_pos1 = (centerLens_pos + (lenslet_m*R_m * (kl + vec2(0.5,0)) + ij)) / tex_dim;
+            vec2 texel_pos2 = (centerLens_pos + (lenslet_m*R_m * (kl - vec2(0.5,0)) + ij)) / tex_dim;
+            fragcol = (texture2D(lightfield, texel_pos1) + texture2D(lightfield, texel_pos2)) / 2;
+        }
+        else{
+            vec2 texel_pos = (centerLens_pos + (lenslet_m*R_m * kl + ij)) / tex_dim;
             fragcol = texture2D(lightfield, texel_pos);
         }
     }
@@ -346,88 +522,19 @@ void main(void)
 
     else if (view_mode > 2){
 
-        // get st coordinate we are in
-        vec2 st = vec2(1.0,1.0)-texc.st;
+        // show all st-planes of all uv's
+        vec2 uv_exact = texc.st * vec2(15.0,15.0);//(lenslet_dim + vec2(1,1)); //
+        vec2 uv = vec2(uv_exact) - vec2(15.0,15.0)/2.0;//lenslet_dim/2.0; // from center
 
-        // show all st-planes of all uvs
-        vec2 uv_exact = texc.st * (lenslet_dim + vec2(1,1));
-        vec2 uv = ivec2(uv_exact) - lenslet_dim/2; // from center
-        st = vec2(1.0,1.0)-(uv_exact - ivec2(uv_exact)); // invert
-
-        st = vec2(0.5,0.5) - st; // from center + flip
-        st *= vec2(int(size_st.x), size_st.y); // size of st plane
-        //st *= size_st; // size of st plane
+        vec2 st = vec2(1.0,1.0) - (uv_exact - ivec2(uv_exact)); // invert
+        st *= size_st; // size of st plane
+        st = size_st/2.0 - st; // from center + flip
         st = floor(st + vec2(0.5f,0.5f)); // exact st position
 
-        uv *= vec2(15,15) / lenslet_dim; //stretch uv coordinates from center
-        color = recalcPosAtSTUV(st, uv); // st -312.5 - 312.5, -217.5 - 217.5
+        uv *= lenslet_dim/vec2(15.0,15.0); //stretch uv coordinates from center
+
+        //color = recalcPosAtUVST(uv, st);
+        //color = recalcPosAtUVST_Cho(uv, st);
+        color = recalcPosAtIJKL(uv, st);
     }
-    /*
-    else if(view_mode > 2){
-        vec2 diff_from_raw_center = (centerLens_pos - (vec2(1.0f-texc.s, 1.0f-texc.t) * tex_dim));
-
-        // converting to lenslet coordinate system
-        //mat2 m = lenslet_m;
-        //float a = m[0][0]; float b = m[1][0]; float c = m[0][1]; float d = m[1][1];
-        //mat2 inverse_m = (1.0f/(a*d - b*c)) * mat2(vec2(d,-c),vec2(-b,a)); // column major
-        vec2 currentLens_exact = inverse(lenslet_m) * diff_from_raw_center;
-
-        vec2 currentLens = vec2(int(currentLens_exact.x + 0.5), int(currentLens_exact.y + 0.5));
-        // Now we have the correct lense
-
-        // split 1 pixel into 9 Pixel
-        ivec2 interleave_pos = ivec2(int((int(currentLens.x) - currentLens_exact.x-0.5f)/0.33333),
-                                     int((int(currentLens.y) - currentLens_exact.y-0.5f)/0.33333))
-                                + ivec2((currentLens.x < 0) ? -1 : 1,
-                                        (currentLens.y < 0) ? -1 : 1);
-        interleave_pos = -interleave_pos;
-
-        if(int(currentLens.y) % 2 == 1)
-           currentLens.x += 0.5;
-
-        // convert back to pixel coordinate system
-        // pixel from center to lenslet
-        vec2 pixel_pos = lenslet_m * currentLens;
-
-        // add pixel position in lens (to select different uv-image)
-        // and add interleave position
-        pixel_pos += lens_pos_view + ((option_superresolution) ? interleave_pos : ivec2(0,0));
-
-        vec2 texel_pos = (centerLens_pos + pixel_pos) / tex_dim;
-
-        // focus stuff
-        int u = int(lens_pos_view.x);
-        int v = int(lens_pos_view.y);
-
-        //vec2 exact_lenslet_pos = lenslet_dim * focus * 0.001f;
-        //vec2 lenslet_pos = vec2(int(exact_lenslet_pos.x), int(exact_lenslet_pos.y));
-        //vec2 perc_lenslet_pos = exact_lenslet_pos-lenslet_pos;
-
-        vec4 fragcol = vec4(0,0,0,0);
-        for (int y=v-7; y <= v+7; y++){
-            for (int x=u-7; x <= u+7; x++){
-                vec2 x_y = vec2(x,y);
-                if (length(x_y) < focus_radius){
-                    x_y += -(x_y) * lenslet_dim * int(focus * 0.1f);
-                    fragcol += interpolateST(texel_pos, x_y);
-                }
-            }
-        }
-        //gl_FragColor = fragcol / fragcol.a;
-        gl_FragColor = computeColorAt(texel_pos);
-    }*/
-
-    // super resolution image by interleaving pixels
-    // Means: Each point observed
-    // t = 1/3 + n
-    // n = 0,1,2,3,4,5...
-    // a = db/(x + 1/3 + n)
-
-    // d = lenslet_dim
-    // ivec2 delta = ivec2(int(lenslet_dim.x +0.5f), int(lenslet_dim.y +0.5f));
-    // b =? 3.699999999999999e-5;
-    // a.x = d.x * b / (x + 1/3 + n)
-
-    //gl_FragColor = vec4(1,1,0,1);
-
 }

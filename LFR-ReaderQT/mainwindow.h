@@ -43,6 +43,8 @@ public slots:
     void chooseCreate3DScene();
     void chooseGenerate_DepthMap();
 
+    void chooseCho_EstimateCenterPositions();
+
 private:
     Ui::MainWindow *ui;
     lfp_raw_view* color_view, *microlens_view;

@@ -36,7 +36,7 @@ void main(void)
               float dist = length(vec2(x,y));
               if (dist > focus_radius)
                   continue;
-              vec2 pos = vec2(x, y);
+              vec2 pos = vec2(x, y)+uv;
               //vec2 scale = (vec2(0.5,0.5) - texc.st) * dist * focus_spread + vec2(0.5,0.5);
               vec2 texel_pos = texc.st - focus * 0.001f * vec2(x,y);
               pos = (texel_pos + pos + lenslet_dim/2) /(lenslet_dim + vec2(1,1));
