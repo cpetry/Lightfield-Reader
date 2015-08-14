@@ -144,6 +144,3 @@ win32 {
             -luser32
     }
 }
-
-RESOURCES += \
-    shaders.qrc
