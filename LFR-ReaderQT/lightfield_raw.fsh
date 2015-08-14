@@ -20,6 +20,7 @@ uniform mediump float focus = 0;
 uniform mediump mat3 ccm;
 uniform mediump float modulationExposureBias;
 uniform int view_mode = 3; // 0 - raw, 1 - bayer, 2 - demosaiced
+uniform int decode_mode = 0; // 0 - meta, 1 - dan, 2 - cho
 uniform bool option_wb = true;
 uniform bool option_ccm = true;
 uniform bool option_gamma = true;
@@ -316,7 +317,7 @@ vec4 recalcPosAtUVST_Cho(vec2 uv, vec2 st){
     //hex = R_m * hex;
     //hex = lenslet_m * R_m * hex;
     img_pos *= size_st;
-    bool show_hex = true;
+    bool show_hex = false;
 
     if(is_raw){
         if(int(hex.y) % 4 == 0){
@@ -544,8 +545,11 @@ void main(void)
 
         uv *= lenslet_dim/vec2(15.0,15.0); //stretch uv coordinates from center
 
-        //color = recalcPosAtUVST(uv, st);
-        color = recalcPosAtUVST_Cho(uv, st);
-        //color = recalcPosAtIJKL(uv, st);
+        if (decode_mode == 0)
+            color = recalcPosAtIJKL(uv, st);
+        else if (decode_mode == 1)
+            color = recalcPosAtUVST(uv, st);
+        else if (decode_mode == 2)
+            color = recalcPosAtUVST_Cho(uv, st);
     }
 }

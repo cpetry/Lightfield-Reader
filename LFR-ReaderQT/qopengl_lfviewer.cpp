@@ -679,6 +679,7 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
     m.translate(0,0, -1.0f);
     program->bind();
     //qDebug() << "program bind : " << program->bind();
+    program->setUniformValue("decode_mode", opengl_decode_mode);
     program->setUniformValue("view_mode", opengl_view_mode);
     program->setUniformValue("option_wb", opengl_option_wb);
     program->setUniformValue("option_ccm", opengl_option_ccm);

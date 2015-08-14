@@ -51,6 +51,7 @@ public slots:
     void buttonDemosaicClicked(){ opengl_view_mode = 2; update();}
     void buttonUVModeClicked(){ opengl_view_mode = 3; update();}
     void buttonDisplayClicked(){ opengl_view_mode = 4; update();}
+    void setDecodeMode(int m){ opengl_decode_mode = m; update();}
     void toggleWhiteBalance(bool v){ opengl_option_wb = v; update();}
     void toggleCCM(bool v){ opengl_option_ccm = v;  update();}
     void toggleGamma(bool v){ opengl_option_gamma = v;  update();}
@@ -144,7 +145,8 @@ private:
     bool opengl_option_gamma = true;
     bool opengl_option_superresolution = true;
     bool opengl_option_is_demosaicked = false;
-    bool opengl_option_display_mode = 1;
+    int opengl_option_display_mode = 1;
+    int opengl_decode_mode = 0;
     bool opengl_option_render_frames = false;
     bool opengl_save_current_image = false;
     bool texture_is_raw = false;

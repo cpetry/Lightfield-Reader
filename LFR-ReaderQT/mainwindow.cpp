@@ -544,6 +544,11 @@ void MainWindow::chooseLFImage(){
 
         QWidget* display_options = new QWidget();
         QVBoxLayout* display_options_layout = new QVBoxLayout();
+        QComboBox* decode_mode = new QComboBox();
+        decode_mode->addItem("Meta");
+        decode_mode->addItem("Dansereau");
+        decode_mode->addItem("Cho");
+        connect( decode_mode, SIGNAL(currentIndexChanged(int)), opengl_viewer, SLOT(setDecodeMode(int)) );
         display_options->setLayout(display_options_layout);
         QPushButton *uvmode = new QPushButton("UV-ST");
         connect( uvmode, SIGNAL(clicked()), opengl_viewer, SLOT(buttonUVModeClicked()) );
@@ -562,6 +567,7 @@ void MainWindow::chooseLFImage(){
         QLabel *fps_display = new QLabel("Fps: ");
         connect( opengl_viewer, SIGNAL(refreshFPS(QString)), fps_display, SLOT(setText(QString)));
         display_options_layout->addWidget(fps_display);
+        display_options_layout->addWidget(decode_mode);
         display_options_layout->addWidget(demosaic_render);
         display_options_layout->addWidget(display);
         display_options_layout->addWidget(uvmode);
