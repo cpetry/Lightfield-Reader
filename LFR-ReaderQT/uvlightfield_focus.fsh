@@ -12,7 +12,7 @@ uniform float focus_spread = 1;
 float focus_radius = 7;
 mat3 gauss_sharp = mat3(0,-1,0,-1,5,-1,0,-1,0);
 uniform float focus = 0;
-varying mediump vec3 texc;
+varying mediump vec4 texc;
 
 void main(void)
 {
@@ -36,7 +36,7 @@ void main(void)
               float dist = length(vec2(x,y));
               if (dist > focus_radius)
                   continue;
-              vec2 pos = vec2(x, y);
+              vec2 pos = vec2(x, y)+uv;
               //vec2 scale = (vec2(0.5,0.5) - texc.st) * dist * focus_spread + vec2(0.5,0.5);
               vec2 texel_pos = texc.st - focus * 0.001f * vec2(x,y);
               pos = (texel_pos + pos + lenslet_dim/2) /(lenslet_dim + vec2(1,1));
@@ -48,6 +48,5 @@ void main(void)
     }
     else
         gl_FragColor = texture2D(renderedTexture, vec2(texc.st));
-    //gl_FragColor = vec4(focus,1-focus,0,1);
 }
 

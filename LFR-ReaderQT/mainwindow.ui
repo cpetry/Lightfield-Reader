@@ -43,10 +43,27 @@
      <string>Image</string>
     </property>
     <addaction name="actionLFImage"/>
+    <addaction name="actionConvert_Images"/>
+   </widget>
+   <widget class="QMenu" name="menu3D_Reconstruction">
+    <property name="title">
+     <string>3D-Reconstruction</string>
+    </property>
+    <addaction name="actionCreate_3DScene"/>
+    <addaction name="actionGenerate_DepthMap"/>
+   </widget>
+   <widget class="QMenu" name="menuDecoding">
+    <property name="title">
+     <string>Decoding</string>
+    </property>
+    <addaction name="actionCreateCalibrationImage"/>
+    <addaction name="actionCho_EstimateCenterPositions"/>
    </widget>
    <addaction name="menuLoad"/>
+   <addaction name="menuDecoding"/>
    <addaction name="menuImage"/>
    <addaction name="menuVideo"/>
+   <addaction name="menu3D_Reconstruction"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -85,6 +102,31 @@
   <action name="actionOpen_Image_Sequence">
    <property name="text">
     <string>Open Image Sequence</string>
+   </property>
+  </action>
+  <action name="actionCreate_3DScene">
+   <property name="text">
+    <string>Create Scene</string>
+   </property>
+  </action>
+  <action name="actionConvert_Images">
+   <property name="text">
+    <string>Convert Images</string>
+   </property>
+  </action>
+  <action name="actionGenerate_DepthMap">
+   <property name="text">
+    <string>Generate DepthMap</string>
+   </property>
+  </action>
+  <action name="actionCreateCalibrationImage">
+   <property name="text">
+    <string>CreateCalibrationImage</string>
+   </property>
+  </action>
+  <action name="actionCho_EstimateCenterPositions">
+   <property name="text">
+    <string>Cho_EstimateCenterPositions</string>
    </property>
   </action>
  </widget>

@@ -51,15 +51,30 @@ public slots:
     void buttonDemosaicClicked(){ opengl_view_mode = 2; update();}
     void buttonUVModeClicked(){ opengl_view_mode = 3; update();}
     void buttonDisplayClicked(){ opengl_view_mode = 4; update();}
+    void setDecodeMode(int m){ opengl_decode_mode = m; update();}
     void toggleWhiteBalance(bool v){ opengl_option_wb = v; update();}
     void toggleCCM(bool v){ opengl_option_ccm = v;  update();}
     void toggleGamma(bool v){ opengl_option_gamma = v;  update();}
     void toggleSuperResolution(bool v){ opengl_option_superresolution = v; update();}
+    void setRotation(double r){
+
+        float R_matrix[] = {std::cos(r), std::sin(r),
+                           -std::sin(r), std::cos(r)};
+        R_m = QMatrix2x2(R_matrix);
+        program->bind();
+        program->setUniformValue("R_m", R_m);
+
+        update();
+    }
     void renderDemosaic(bool v) {opengl_option_is_demosaicked = v; update();}
+    void setDemosaicingMode(int v) {opengl_option_demosaicking_mode = v; update();}
+    void renderFrames(bool v) {opengl_option_render_frames = v; update();}
     void saveImage();
     void saveRaw();
+    cv::Mat getDemosaicedImage(int mode);
 
     void start_video();
+    void stop_video();
 
 protected:
     void initializeGL() Q_DECL_OVERRIDE;
@@ -81,7 +96,6 @@ private slots:
 private:
     void open_video(QString filename);
     void open_image_sequence(QStringList filenames);
-    void close_video();
     void makeObject();
     void restructureImageToUVST();
     cv::VideoCapture* _capture = NULL;
@@ -107,11 +121,14 @@ private:
     cv::Mat pretexture;
     int tick_ms = 5;
     int index = 0;
+    cv::Mat save_img;
 
     GLuint texture_id, framebuffer, renderedTexture_id, renderedTex_id, lightfield_id;
     float orthosize = 1.0f;
     QPointF translation = QPointF(0.0f, 0.0f);
     QPointF lens_pos_view = QPointF(0.0f, 0.0f);
+    QMatrix4x4 H;
+    QMatrix2x2 R_m;
 
     int tex_index = 0;
     int time_count = 0;
@@ -128,9 +145,15 @@ private:
     bool opengl_option_gamma = true;
     bool opengl_option_superresolution = true;
     bool opengl_option_is_demosaicked = false;
-    bool opengl_option_display_mode = 1;
+    int opengl_option_display_mode = 1;
+    int opengl_decode_mode = 0;
+    bool opengl_option_render_frames = false;
+    bool opengl_save_current_image = false;
     bool texture_is_raw = false;
     bool is_video = false, is_imagelist = false;
+    bool video_playing = false;
+    int opengl_option_demosaicking_mode = 1;
+    float D = 22;
 
 signals:
     void closed();

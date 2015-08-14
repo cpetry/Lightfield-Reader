@@ -46,8 +46,8 @@ public:
 
     lf_meta meta_infos;
 
-    bool read_lfp(MainWindow *main, std::string file, bool save_raw_to_file = false, std::string raw_file_name = "");
-    bool read_RAWFile(MainWindow* main, std::string file);
+    bool read_lfp(MainWindow *main, std::string file, std::string raw_file_name = "");
+    bool read_RAWFile(MainWindow* main, std::string file, std::string save_file_name = "");
     void parseLFMetaInfo(QString meta_info);
     std::vector<char> readBytes(std::basic_ifstream<unsigned char> &input, int nmb_bytes = 0);
     std::string readText(std::basic_ifstream<unsigned char> &input, int nmb_bytes = 0);
@@ -114,6 +114,9 @@ private:
         else{
             str_size = int(std::min(heystack.find(",", pos), heystack.find("}", pos)) - pos);
         }
-        return trim(heystack.substr(pos+1, str_size-1));
+        if(heystack.size() > pos+1 + str_size-1)
+            return trim(heystack.substr(pos+1, str_size-1));
+        else
+            return "error";
     }
 };

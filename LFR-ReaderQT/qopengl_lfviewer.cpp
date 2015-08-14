@@ -9,6 +9,9 @@
 #include <QMediaPlayer>
 #include <QVideoWidget>
 #include <QMessageBox>
+#include <QOpenGLShaderProgram>
+
+#include "depthcostaware.h"
 
 QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0) {
@@ -54,6 +57,7 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QString file, bool is_video,
     }
 }
 
+
 QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_video, LFP_Reader::lf_meta meta_infos)
     : QOpenGLWidget(parent), clearColor(Qt::black), program(0), focusprogram(0) {
 
@@ -70,7 +74,8 @@ QOpenGL_LFViewer::QOpenGL_LFViewer(QWidget *parent, QStringList files, bool is_v
 QOpenGL_LFViewer::~QOpenGL_LFViewer()
 {
     makeCurrent();
-    _func330->glDeleteBuffers(2, pboIds);
+    if (pboIds[0] != 0 && pboIds[1] != 0)
+        _func330->glDeleteBuffers(2, pboIds);
     texture.release();
     vbo.destroy();
     delete program;
@@ -98,28 +103,48 @@ void QOpenGL_LFViewer::setClearColor(const QColor &color)
 
 void QOpenGL_LFViewer::open_image_sequence(QStringList filenames){
     texture = cv::imread(filenames.at(0).toStdString(), 1); //loads color if it is available
-    cv::cvtColor(texture, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
-    pretexture = cv::Mat::Mat(cv::Size(texture.cols, texture.rows), texture.channels());
-    cv::flip(texture, texture, 0);
+    int channels = (QImage(filenames.at(0)).format() == QImage::Format_Indexed8) ? 1 : 3;
+    texture_is_raw = (channels == 1);
+
+    // read in first texture to get some info
+    if (texture_is_raw){
+        int from_to[] = { 0,0 };
+        pretexture = cv::Mat::Mat(cv::Size(texture.cols, texture.rows), 0);
+        cv::mixChannels( &texture, 1, &pretexture, 1, from_to, 1);
+        cv::flip(pretexture, pretexture, 0);
+    }
+    else{
+        cv::cvtColor(texture, texture, CV_BGR2RGBA); // has to be RGBA ... -.-
+        pretexture = cv::Mat::Mat(cv::Size(texture.cols, texture.rows), texture.channels());
+        cv::flip(texture, texture, 0);
+    }
     this->meta_infos.width = texture.cols;
     this->meta_infos.height = texture.rows;
-    texture_is_raw = (texture.channels() == 1);
+
+    // read in every other texture!
     for(int i=0; i< filenames.length(); i++){
-        //QImage image = QImage(filenames[i]);
-        //texture_list.push_back(image.mirrored());
         cv::Mat img = cv::imread(filenames[i].toStdString(), 1);//loads color if it is available
-        cv::cvtColor(img, img, CV_BGR2RGBA); // has to be RGBA ... -.-
-        cv::flip(img, img, 0);
-        texture_list.push_back(img);
+        if (texture_is_raw){
+            int from_to[] = { 0,0 };
+            cv::Mat channel = cv::Mat::Mat(cv::Size(img.cols, img.rows), 0);
+            cv::mixChannels( &img, 1, &channel, 1, from_to, 1);
+            cv::flip(channel, channel, 0);
+            texture_list.push_back(channel);
+        }
+        else{
+            cv::cvtColor(img, img, CV_BGR2RGBA); // has to be RGBA ... -.-
+            cv::flip(img, img, 0);
+            texture_list.push_back(img);
+        }
     }
     frames_total = filenames.length();
     opengl_option_is_demosaicked = true;
 
-    int fps = 1;
-    tick_ms = 1000/fps;
+    //int fps = 1;
+    //tick_ms = 1000/fps;
 
     //start_video();
-    myTimer.singleShot(200,SLOT(_tick()));
+    //myTimer.singleShot(200,SLOT(_tick()));
 }
 
 void QOpenGL_LFViewer::open_video(QString filename)
@@ -199,9 +224,6 @@ void QOpenGL_LFViewer::open_video(QString filename)
         meta_infos.height = video_height;
     }
 
-    resize(625, 433);
-    // Retrieve fps from the video. If not available, default will be 25
-
     frames_total = _capture->get(CV_CAP_PROP_FRAME_COUNT);
 
     int image_type = QMessageBox::warning(this, tr("Image Format"),
@@ -243,13 +265,17 @@ void QOpenGL_LFViewer::open_video(QString filename)
     // reset to position 0
     _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
 
+    resize(625, 433);
+    // Retrieve fps from the video. If not available, default will be 25
+
     //start_video();
-    myTimer.singleShot(200,SLOT(_tick()));
 }
 
 void QOpenGL_LFViewer::start_video(){
-    myTimer.start();
-    QObject::connect(&myTimer, SIGNAL(timeout()), this, SLOT(_tick()));
+    video_playing = !video_playing;
+    if (video_playing)
+        myTimer.singleShot(200,SLOT(_tick()));
+    //QObject::connect(&myTimer, SIGNAL(timeout()), this, SLOT(_tick()));
 }
 
 void QOpenGL_LFViewer::_tick()
@@ -275,22 +301,17 @@ void QOpenGL_LFViewer::_tick()
             }
         }
 
-
-
-
         // start to copy from PBO to texture object ///////
         // Pixel Buffer Object indices
         index = (index + 1) % 2;
         int nextIndex = (index + 1) % 2;
-        //int nextIndex = 0;
-        //index = nextIndex = 0;
 
         // bind the texture and PBO
         glBindTexture(GL_TEXTURE_2D, texture_id);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[index]);
 
         // copy pixels from PBO to texture object
-        // Use offset instead of ponter.
+        // Use offset instead of pointer.
         if (texture_is_raw){
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texture.cols, texture.rows,
                         GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, 0);
@@ -319,16 +340,14 @@ void QOpenGL_LFViewer::_tick()
             _func330->glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER); // release pointer to mapping buffer
         }
 
-
         // it is good idea to release PBOs with ID 0 after use.
         // Once bound with 0, all pixel operations behave normal ways.
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
         cv::Mat frame;
-        _capture->read(frame);
+        _capture->read(frame); // reads always three channels
 
         if (texture_is_raw){
-
             int from_to[] = { 0,0 };
             cv::mixChannels( &frame, 1, &pretexture, 1, from_to,1 );
             cv::flip(pretexture, texture, 0);
@@ -343,13 +362,10 @@ void QOpenGL_LFViewer::_tick()
         if (frame_count >= frames_total)
             frame_count = 0;
 
-        texture_list[frame_count].copyTo(texture);
         // start to copy from PBO to texture object ///////
         // Pixel Buffer Object indices
         index = (index + 1) % 2;
         int nextIndex = (index + 1) % 2;
-        //int nextIndex = 0;
-        //index = nextIndex = 0;
 
         // bind the texture and PBO
         glBindTexture(GL_TEXTURE_2D, texture_id);
@@ -388,11 +404,7 @@ void QOpenGL_LFViewer::_tick()
         // Once bound with 0, all pixel operations behave normal ways.
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-        /*glBindTexture( GL_TEXTURE_2D, texture_id);
-        _func330->glTexSubImage2D(GL_TEXTURE_2D, 0, GL_RGBA, meta_infos.width,
-                meta_infos.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_list[frame_count].data);
-                //meta_infos.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, texture_list[frame_count].bits());*/
-        //}
+        texture_list[frame_count].copyTo(texture);
     }
 
     // Trigger paint event to redraw the window
@@ -400,10 +412,12 @@ void QOpenGL_LFViewer::_tick()
     frame_count++;
 }
 
-void QOpenGL_LFViewer::close_video()
+void QOpenGL_LFViewer::stop_video()
 {
-    qDebug() << "cvWindow::_close";
-    emit closed();
+    video_playing = false;
+    // reset to position 0
+    _capture->set(CV_CAP_PROP_POS_FRAMES, 0);
+
 }
 
 void QOpenGL_LFViewer::initializeGL(){
@@ -448,45 +462,80 @@ void QOpenGL_LFViewer::initializeGL(){
 #define PROGRAM_VERTEX_ATTRIBUTE 0
 #define PROGRAM_TEXCOORD_ATTRIBUTE 1
 
+    QMatrix3x3 ccm(meta_infos.cc);
+    double exact_uv = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch);
     double centerx = meta_infos.mla_centerOffset_x / meta_infos.mla_pixelPitch;
     double centery = meta_infos.mla_centerOffset_y / meta_infos.mla_pixelPitch;
-    double radiusx = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_x;
-    double radiusy = (meta_infos.mla_lensPitch / meta_infos.mla_pixelPitch) * meta_infos.mla_scale_y;
+    double radiusx = exact_uv * meta_infos.mla_scale_x;
+    double radiusy = exact_uv * meta_infos.mla_scale_y;
     double lenslet_rotation = meta_infos.mla_rotation;
 
-
-    float dy_rot_PerLenslet = -tan(lenslet_rotation) * radiusx;
-    float dx_rot_PerLenslet = tan(lenslet_rotation) * radiusy;
     QPointF centerLens_pos = QPointF(meta_infos.width/2.0f + centerx, meta_infos.height/2.0f - centery);
-    float dy_PerLenslet_row = sqrt(pow(radiusx,2) - pow(radiusx/2.0f,2));
-    float lenslet_matrix[] = {radiusx, dx_rot_PerLenslet,
-                    dy_rot_PerLenslet, dy_PerLenslet_row};
-    QMatrix3x3 ccm(meta_infos.cc);
+    double dy_PerLenslet_row = sqrt(pow(radiusx,2) - pow(radiusx/2.0f,2))* meta_infos.mla_scale_y;
+    //double dy_PerLenslet_row = sqrt(pow(15.0,2) - pow(15.0/2.0f,2))* meta_infos.mla_scale_y;
+
+    float lenslet_matrix[] = {radiusx, 0, 0, dy_PerLenslet_row* meta_infos.mla_scale_y };
+    //float lenslet_matrix[] = {1, 0, 0, dy_PerLenslet_row/15.0};
+
     QMatrix2x2 lenslet_m(lenslet_matrix);
+
+    float R_matrix[] = {std::cos(lenslet_rotation), std::sin(lenslet_rotation),
+                       -std::sin(lenslet_rotation), std::cos(lenslet_rotation)};
+    R_m = QMatrix2x2(R_matrix);
+    //lenslet_m = R_m * lenslet_m;
 
     QMatrix4x4 m;
     m.ortho(-1.0f, +1.0f, +1.0f, -1.0f, 0.0f, 10.0f);
     m.translate(0.0f, 0.0f, -1.0f);
 
-    // FRAMEBUFFER
 
-    /*fbo = new QOpenGLFramebufferObject(texture.width(), texture.height(),
-                        QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, GL_RGB8);*/
+    double pix_size = meta_infos.mla_pixelPitch; // in m
+    double lens_size = meta_infos.mla_lensPitch; // in m
+    float N = 15;//lens_size / pix_size; // 15 number of pixels per lenslet
+    int c_pix = 7; // translational pixel offset ?!
+    double c_Mx = meta_infos.mla_centerOffset_x / pix_size;   // optical center offset in mm
+    double c_My = meta_infos.mla_centerOffset_y / pix_size;    // optical center offset in mm
+    double c_mux = -7.3299932479858395e-6 / pix_size;  // mla offset in mm
+    double c_muy = 5.5686492919921878e-6 / pix_size;   // mla offset in mm
+    double d_mu = 3.6999999999999998e-5;  // mla offset in mm
+    double f_M = 0.011542153404246169;    // focal length
+    double exitPupilOffset = 0.11559105682373047; // distance from the pupil to microlens plane
+    double H_data[25];
+    DepthCostAware::calcH(pix_size, lens_size, N, c_pix, c_Mx, c_My,
+                          c_mux, c_muy, d_mu, f_M, exitPupilOffset, D, H_data);
+
+    cv::Mat H_mat = cv::Mat(5,5, cv::DataType<double>::type, H_data);
+
+    float H_dat[16] = {0, static_cast<float>(H_mat.at<double>(0,0)), static_cast<float>(H_mat.at<double>(0,2)), static_cast<float>(H_mat.at<double>(0,4)),
+                       0, static_cast<float>(H_mat.at<double>(1,1)), static_cast<float>(H_mat.at<double>(1,3)), static_cast<float>(H_mat.at<double>(1,4)),
+                       0, static_cast<float>(H_mat.at<double>(2,0)), static_cast<float>(H_mat.at<double>(2,2)), static_cast<float>(H_mat.at<double>(2,4)),
+                       0, static_cast<float>(H_mat.at<double>(3,1)), static_cast<float>(H_mat.at<double>(3,3)), static_cast<float>(H_mat.at<double>(3,4))};
+    H = QMatrix4x4(H_dat);
+
+    cv::Mat H_inv_mat = H_mat.inv();
+    float H_inv_dat[16] = {0, static_cast<float>(H_inv_mat.at<double>(0,0)), static_cast<float>(H_inv_mat.at<double>(0,2)), static_cast<float>(H_inv_mat.at<double>(0,4)),
+                       0, static_cast<float>(H_inv_mat.at<double>(1,1)), static_cast<float>(H_inv_mat.at<double>(1,3)), static_cast<float>(H_inv_mat.at<double>(1,4)),
+                       0, static_cast<float>(H_inv_mat.at<double>(2,0)), static_cast<float>(H_inv_mat.at<double>(2,2)), static_cast<float>(H_inv_mat.at<double>(2,4)),
+                       0, static_cast<float>(H_inv_mat.at<double>(3,1)), static_cast<float>(H_inv_mat.at<double>(3,3)), static_cast<float>(H_inv_mat.at<double>(3,4))};
+    QMatrix4x4 H_inv = QMatrix4x4(H_inv_dat);
+    //H=H.transposed();
+
+
+    // FRAMEBUFFER
 
     framebuffer = 0;
     glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
     glEnable(GL_TEXTURE_2D);
-    //glShadeModel(GL_FLAT);                      // shading mathod: GL_SMOOTH or GL_FLAT
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);      // 4-byte pixel alignment
     // The texture we're going to render to
     renderedTexture_id;
     glGenTextures(1, &renderedTexture_id);
     glBindTexture(GL_TEXTURE_2D, renderedTexture_id);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, meta_infos.width,
-                 meta_infos.height, 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, meta_infos.width,
+                 meta_infos.height, 0,GL_RGBA, GL_UNSIGNED_BYTE, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -509,13 +558,18 @@ void QOpenGL_LFViewer::initializeGL(){
     //qDebug() << "LightfieldID" << program->uniformLocation("lightfield");
     program->setUniformValue("matrix", m);
     program->setUniformValue("lenslet_m", lenslet_m);
+    program->setUniformValue("R_m", R_m);
     program->setUniformValue("ccm", ccm.transposed());
     program->setUniformValue("modulationExposureBias", float(meta_infos.modulationExposureBias));
-    program->setUniformValue("lenslet_dim", QPoint(radiusx, radiusy));
-    program->setUniformValue("size_st", QPoint(meta_infos.width/radiusx, meta_infos.height/dy_PerLenslet_row));
+    program->setUniformValue("lenslet_dim", QPointF(radiusx, radiusy));
+    program->setUniformValue("lenslet_coord", QPointF(radiusx, dy_PerLenslet_row));
+    //program->setUniformValue("size_st", QPoint(meta_infos.width/15, meta_infos.height/15));
+    program->setUniformValue("size_st", QPointF(meta_infos.width/radiusx, meta_infos.height/dy_PerLenslet_row * meta_infos.mla_scale_y));
     program->setUniformValue("centerLens_pos", centerLens_pos);
-    program->setUniformValue("tex_dim", QPoint(meta_infos.width, meta_infos.height));
+    program->setUniformValue("tex_dim", QPointF(meta_infos.width, meta_infos.height));
     program->setUniformValue("white_balance", QVector3D(meta_infos.r_bal,1.0f,meta_infos.b_bal));
+    program->setUniformValue("H", H);
+    program->setUniformValue("H_inv", H_inv);
 
     program->enableAttributeArray(PROGRAM_VERTEX_ATTRIBUTE);
     program->enableAttributeArray(PROGRAM_TEXCOORD_ATTRIBUTE);
@@ -527,9 +581,6 @@ void QOpenGL_LFViewer::initializeGL(){
 
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST); // scale linearly when image bigger than texture
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST); // scale linearly when image smalled than texture
-
-    //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
     if (texture_is_raw)
         _func330->glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, meta_infos.width,
@@ -563,17 +614,6 @@ void QOpenGL_LFViewer::initializeGL(){
     focusprogram->setAttributeBuffer(PROGRAM_VERTEX_ATTRIBUTE, GL_FLOAT, 0, 3, 5 * sizeof(GLfloat));
     focusprogram->setAttributeBuffer(PROGRAM_TEXCOORD_ATTRIBUTE, GL_FLOAT, 3 * sizeof(GLfloat), 2, 5 * sizeof(GLfloat));
 
-    // The framebuffer, which regroups 0, 1, or more textures, and 0 or 1 depth buffer.
-    //framebuffer;
-
-        //qDebug() << "render_id: " << fbo->texture();
-    //qDebug() << "programID: " << program->programId();
-    //qDebug() << "focusID: " << focusprogram->programId();
-    //qDebug() << "Error : " << glGetError();
-
-    // create 2 pixel buffer objects, you need to delete them when program exits.
-            // glBufferDataARB with NULL pointer reserves only memory space.
-
     fps_frames_elapsed = 0;
     fps_time_elapsed = 0;
     fps_timer.start();
@@ -603,7 +643,6 @@ void QOpenGL_LFViewer::paintGL(){
     focusprogram->bind();
     focusprogram->setUniformValue("matrix", m_result);
     focusprogram->setUniformValue("lens_pos_view", lens_pos_view);
-    focusprogram->setUniformValue("uv_coord", QPointF(0,0));
     focusprogram->setUniformValue("focus", focus);
     focusprogram->setUniformValue("view_mode", opengl_view_mode);
     focusprogram->setUniformValue("focus_spread", focus_spread);
@@ -636,10 +675,10 @@ void QOpenGL_LFViewer::paintGL(){
         fps_time_elapsed = 0;
         fps_frames_elapsed = 0;
     }
-    if (is_video){
+    if (is_video && video_playing){
         _tick();
     }
-    else
+    else if (opengl_option_render_frames)
         update();
 }
 
@@ -649,12 +688,16 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
     m.translate(0,0, -1.0f);
     program->bind();
     //qDebug() << "program bind : " << program->bind();
+    program->setUniformValue("decode_mode", opengl_decode_mode);
     program->setUniformValue("view_mode", opengl_view_mode);
     program->setUniformValue("option_wb", opengl_option_wb);
     program->setUniformValue("option_ccm", opengl_option_ccm);
     program->setUniformValue("option_gamma", opengl_option_gamma);
     program->setUniformValue("option_superresolution", opengl_option_superresolution);
     program->setUniformValue("option_display_mode", opengl_option_display_mode);
+    program->setUniformValue("demosaicking_mode", opengl_option_demosaicking_mode);
+    program->setUniformValue("H", H);
+    program->setUniformValue("R_m", R_m);
 
     program->setUniformValue("matrix", m); // m_result, m
     program->setUniformValue("lens_pos_view", lens_pos_view);
@@ -687,6 +730,11 @@ void QOpenGL_LFViewer::restructureImageToUVST(){
       glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
     }
 
+    if (opengl_save_current_image){
+        glReadPixels(0,0, save_img.cols, save_img.rows, GL_BGR, GL_UNSIGNED_BYTE, save_img.data);
+        opengl_save_current_image = false;
+    }
+
     // restore default FBO
     glBindFramebuffer( GL_FRAMEBUFFER, defaultFramebufferObject());
 }
@@ -713,11 +761,46 @@ void QOpenGL_LFViewer::mouseMoveEvent(QMouseEvent *event)
 
     if (currentButton == Qt::LeftButton){
         translation = QPointF(translation.x() + dx * 0.004f * orthosize, translation.y() + dy * 0.004f * orthosize);
+        /*cur_u += dx * 0.04f;
+        cur_v += dy * 0.04f;
+        cur_u = std::min(std::max(cur_u, -7.0f), 7.0f);
+        cur_v = std::min(std::max(cur_v, -7.0f), 7.0f);*/
+        lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.01f, lens_pos_view.y() - dy * 0.01f);
     }
     else if(currentButton == Qt::RightButton){
-        //lens_pos_view = QPointF(lens_pos_view.x() + dx * 0.01f, lens_pos_view.y() - dy * 0.01f);
         focus -= dy * 0.01f;
+    }
+    else if(currentButton == Qt::MiddleButton){
+        D -= dy * 0.001f;
         //focus_spread -= dy * 0.01f;
+
+        double pix_size = meta_infos.mla_pixelPitch; // in m
+        double lens_size = meta_infos.mla_lensPitch; // in m
+        float N = 15;//lens_size / pix_size; // 15 number of pixels per lenslet
+        int c_pix = 7; // translational pixel offset ?!
+        double c_Mx = meta_infos.mla_centerOffset_x / pix_size;   // optical center offset in mm
+        double c_My = -meta_infos.mla_centerOffset_y / pix_size;// * meta_infos.mla_scale_y;    // optical center offset in mm
+        double c_mux = -7.3299932479858395e-6;// / pix_size;  // mla offset in mm
+        double c_muy = 5.5686492919921878e-6;// / pix_size;   // mla offset in mm
+        double d_mu = 3.6999999999999998e-5;  // mla offset in mm
+        double f_M = 0.011542153404246169;    // focal length
+        double exitPupilOffset = 0.11559105682373047; // distance from the pupil to microlens plane
+        double H_data[25];
+        DepthCostAware::calcH(pix_size, lens_size, N, c_pix, c_Mx, c_My,
+                              c_mux, c_muy, d_mu, f_M, exitPupilOffset, D, H_data);
+
+        cv::Mat H_inv = cv::Mat(5,5, cv::DataType<double>::type, H_data);
+        //cv::transpose(H_inv, H_inv);
+        //H_inv = H_inv.inv();
+
+
+        float H_dat[16] = {0, static_cast<float>(H_inv.at<double>(0,0)), static_cast<float>(H_inv.at<double>(0,2)), static_cast<float>(H_inv.at<double>(0,4)),
+                           0, static_cast<float>(H_inv.at<double>(1,1)), static_cast<float>(H_inv.at<double>(1,3)), static_cast<float>(H_inv.at<double>(1,4)),
+                           0, static_cast<float>(H_inv.at<double>(2,0)), static_cast<float>(H_inv.at<double>(2,2)), static_cast<float>(H_inv.at<double>(2,4)),
+                           0, static_cast<float>(H_inv.at<double>(3,1)), static_cast<float>(H_inv.at<double>(3,3)), static_cast<float>(H_inv.at<double>(3,4))};
+
+        H = QMatrix4x4(H_dat);
+
     }
     lastPos = event->pos();
     if (_capture == NULL || !_capture->isOpened())
@@ -732,7 +815,7 @@ void QOpenGL_LFViewer::setOverlap(double o){
 
 
 void QOpenGL_LFViewer::focus_changed(int value){
-    focus = value / 100.0f;
+    focus = value / 100.0f / 2;
 
     if (_capture == NULL || !_capture->isOpened())
         update();
@@ -804,7 +887,6 @@ void QOpenGL_LFViewer::saveRaw(){
                                                 QDir::currentPath(),
                                                 "Images (*.png *.xpm *.jpg)");
 
-    QVector<QRgb> colorTable;
     QImage retImg(texture.cols,texture.rows,QImage::Format_Indexed8);
     QVector<QRgb> table( 256 );
     for( int i = 0; i < 256; ++i )
@@ -829,15 +911,30 @@ void QOpenGL_LFViewer::saveRaw(){
     //saveMetaInfo(filename);
 }
 
+cv::Mat QOpenGL_LFViewer::getDemosaicedImage(int mode){
+    opengl_option_demosaicking_mode = mode;
+    opengl_save_current_image = true;
+    opengl_view_mode = 2;
+    save_img.create(meta_infos.height, meta_infos.width, CV_8UC3);
+    update();
+    cv::flip(save_img, save_img, 0);
+    cv::imwrite("bla.png", save_img);
+    return save_img.clone();
+}
+
 void QOpenGL_LFViewer::saveImage(){
     //glViewport((width - side) / 2, (height - side) / 2, side, side);
-    //update();
+    opengl_save_current_image = true;
+    save_img.create(meta_infos.height, meta_infos.width, CV_8UC3);
+    update();
     QString filename = QFileDialog::getSaveFileName(0,
                                                 "Save File",
                                                 QDir::currentPath(),
                                                 "Images (*.png *.xpm *.jpg)");
     if (filename != ""){
-        this->grabFramebuffer().save(filename);
+        cv::flip(save_img, save_img, 0);
+        cv::imwrite(filename.toStdString(), save_img);
+        //this->grabFramebuffer().save(filename);
     }
 
     //saveMetaInfo(filename);
