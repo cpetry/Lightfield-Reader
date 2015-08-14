@@ -310,73 +310,84 @@ vec4 recalcPosAtUVST_Cho(vec2 uv, vec2 st){
     vec2 exact = vec2(0.5,0.5);
     //return computeColorAt(texc.st);
     vec2 img_pos = vec2(1.0,1.0) - texc.st; // invert
-    img_pos *= size_st;
     //vec2 hex = /*size_st/2.0*/ - img_pos * 2; // from center + flip
-    vec2 hex = ivec2(img_pos*2); // exact st position
+    vec2 hex = ivec2(img_pos*size_st*2); // exact st position
     //hex += centerLens_pos * lenslet_dim;
     //hex = R_m * hex;
     //hex = lenslet_m * R_m * hex;
+    img_pos *= size_st;
+    bool show_hex = true;
 
     if(is_raw){
         if(int(hex.y) % 4 == 0){
             //return vec4(0,0,0,1);
-            if (int(hex.x) % 2 == 0){ // 1
+            if (int(hex.x) % 2 == 0){
                 //return vec4(0,0,0,1);
-                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 texel_pos1 = (centerLens_pos + img_pos1 + exact) / tex_dim;
-                vec2 texel_pos2 = (centerLens_pos + img_pos2 + exact) / tex_dim;
-                vec2 texel_pos3 = (centerLens_pos + img_pos3 + exact) / tex_dim;
-                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3;
+                if (show_hex)
+                    return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,1) + vec2(0.5,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(1,0) + vec2(0,0));
+                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,0) + vec2(0,0));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
+                vec2 texel_pos3 = (centerLens_pos + img_pos3) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1)*1.4 + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3.4;
             }
-            else{                    // 2
+            else{
                 //return vec4(0,0,0,1);
-                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 texel_pos1 = (centerLens_pos + img_pos1 + exact) / tex_dim;
-                vec2 texel_pos2 = (centerLens_pos + img_pos2 + exact) / tex_dim;
-                vec2 texel_pos3 = (centerLens_pos + img_pos3 + exact) / tex_dim;
-                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3;
+                if (show_hex)
+                    return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,1) + vec2(0.5,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(-1,1) + vec2(0.5,0));
+                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,0) + vec2(0,0));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
+                vec2 texel_pos3 = (centerLens_pos + img_pos3) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)*1.4) / 3.4;
             }
         }
         else if(int(hex.y) % 4 == 1){
             if (int(hex.x) % 2 == 0){// 3
                 //return vec4(0,0,0,1);
-                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
-                vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
-                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2;
+                if (show_hex)
+                    return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(1,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,0));
+                vec2 texel_pos1 = (centerLens_pos + img_pos1 + vec2(0,0)) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2 + vec2(0,0)) / tex_dim;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2.0;
             }
             else{                    // 4
                 //return vec4(0,0,0,1);
                 img_pos = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 texel_pos1 = ivec2(centerLens_pos + img_pos) / tex_dim;
+                vec2 texel_pos1 = ivec2(centerLens_pos + img_pos + vec2(0,0)) / tex_dim;
                 fragcol = (computeColorAt(texel_pos1));
             }
         }
         else if(int(hex.y) % 4 == 2){
             if (int(hex.x) % 2 == 0){
                 //return vec4(0,0,0,1);
-                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
-                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
-                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                if (show_hex)
+                    return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,1) + vec2(0,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(1,1) + vec2(0,0));
+                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,0) + vec2(0.5,0));
                 vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
                 vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
                 vec2 texel_pos3 = (centerLens_pos + img_pos3) / tex_dim;
-                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)*1.4) / 3.4;
             }
             else{
                 //return vec4(0,0,0,1);
-                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
-                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
-                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                if (show_hex)
+                    return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,1) + vec2(0,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(-1,0) + vec2(0.5,0));
+                vec2 img_pos3 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,0) + vec2(0.5,0));
                 vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
                 vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
                 vec2 texel_pos3 = (centerLens_pos + img_pos3) / tex_dim;
-                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3;
+                fragcol = (computeColorAt(texel_pos1)*1.4 + computeColorAt(texel_pos2) + computeColorAt(texel_pos3)) / 3.4;
             }
         }
         else if(int(hex.y) % 4 == 3){
@@ -388,11 +399,13 @@ vec4 recalcPosAtUVST_Cho(vec2 uv, vec2 st){
             }
             else{
                 //return vec4(0,0,0,1);
-                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
-                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0.5,0));
+                if (show_hex)
+                    return vec4(0,0,0,1);
+                vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(-1,0) + vec2(0.5,0));
+                vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0 ,0) + vec2(0.5,0));
                 vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
                 vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
-                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2;
+                fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2.0;
             }
         }
 
@@ -410,8 +423,8 @@ vec4 recalcPosAtUVST(vec2 uv, vec2 st){
         if(int(st.y) % 2 == 1){
             vec2 st_ = st - vec2(0.5,0);// + vec2(11,10);
             //st_ = lenslet_m/14.2857 * st_;
-            //st_ = lenslet_m * st_;
-            //st_ = R_m * st_;
+            st_ = lenslet_m/15 * st_;
+            st_ = R_m * st_;
             vec4 ijkl = vec4(H[1][0]*uv.x + H[2][0]*st_.x + H[3][0]*1,
                         H[1][1]*uv.y + H[2][1]*st_.y + H[3][1]*1,
                         H[1][2]*uv.x + H[2][2]*st_.x + H[3][2]*1,
@@ -420,18 +433,17 @@ vec4 recalcPosAtUVST(vec2 uv, vec2 st){
                              H[1][1]*uv.y + H[1][2]*st_.y + H[1][3]*1,
                              H[2][1]*uv.x + H[2][2]*st_.x + H[2][3]*1,
                              H[3][1]*uv.y + H[3][2]*st_.y + H[3][3]*1);*/
-            ijkl.xy = lenslet_m * ijkl.xy;
-            ijkl.xy = R_m * ijkl.xy;
-            //vec2 texel_pos2 = (centerLens_pos + (ijkl.xy + ijkl.zw)) / tex_dim;
-            vec2 texel_pos2 = (centerLens_pos + (lenslet_m*R_m * st_ + uv)) / tex_dim;
+            //ijkl.xy *= lenslet_m/14.285*R_m;
+            vec2 texel_pos2 = (centerLens_pos + (ijkl.xy + ijkl.zw)) / tex_dim;
+            //vec2 texel_pos2 = (centerLens_pos + (lenslet_m*R_m * st_ + uv)) / tex_dim;
             //fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2;
             fragcol = (computeColorAt(texel_pos2));// + computeColorAt(texel_pos2)) / 2;
         }
         else{
             st = st;// + vec2(11,10);
             //st = lenslet_m/14.2857 * st;
-            //st = lenslet_m * st;
-            //st = R_m * st;
+            st = lenslet_m/15 * st;
+            st = R_m * st;
             vec4 ijkl = vec4(H[1][0]*uv.x + H[2][0]*st.x + H[3][0]*1,
                              H[1][1]*uv.y + H[2][1]*st.y + H[3][1]*1,
                              H[1][2]*uv.x + H[2][2]*st.x + H[3][2]*1,
@@ -440,10 +452,9 @@ vec4 recalcPosAtUVST(vec2 uv, vec2 st){
                              H[1][1]*uv.y + H[1][2]*st.y + H[1][3]*1,
                              H[2][1]*uv.x + H[2][2]*st.x + H[2][3]*1,
                              H[3][1]*uv.y + H[3][2]*st.y + H[3][3]*1);*/
-            ijkl.xy = lenslet_m * ijkl.xy;
-            ijkl.xy = R_m * ijkl.xy;
-            //vec2 texel_pos = (centerLens_pos + (ijkl.xy + ijkl.zw)) / tex_dim;
-            vec2 texel_pos = (centerLens_pos + (lenslet_m*R_m * st + uv)) / tex_dim;
+            //ijkl.xy *= lenslet_m/14.285*R_m;
+            vec2 texel_pos = (centerLens_pos + (ijkl.xy + ijkl.zw)) / tex_dim;
+            //vec2 texel_pos = (centerLens_pos + (lenslet_m*R_m * st + uv)) / tex_dim;
             fragcol = computeColorAt(texel_pos);
         }
     }
@@ -534,7 +545,7 @@ void main(void)
         uv *= lenslet_dim/vec2(15.0,15.0); //stretch uv coordinates from center
 
         //color = recalcPosAtUVST(uv, st);
-        //color = recalcPosAtUVST_Cho(uv, st);
-        color = recalcPosAtIJKL(uv, st);
+        color = recalcPosAtUVST_Cho(uv, st);
+        //color = recalcPosAtIJKL(uv, st);
     }
 }
