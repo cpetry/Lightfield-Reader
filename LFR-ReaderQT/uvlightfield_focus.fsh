@@ -8,6 +8,7 @@ uniform mediump vec2 lenslet_dim;
 uniform mediump vec2 size_st;
 uniform mediump vec2 lens_pos_view;
 uniform int view_mode = 4; // 0 - raw, 1 - bayer, 2 - demosaiced, 3 - uv, 4 - focus
+uniform int decode_mode = 0; // 0 - meta, 1 - dan, 2 - cho
 uniform float focus_spread = 1;
 float focus_radius = 7;
 mat3 gauss_sharp = mat3(0,-1,0,-1,5,-1,0,-1,0);
@@ -16,8 +17,11 @@ varying mediump vec4 texc;
 
 void main(void)
 {
-    //gl_FragColor = texture2D(renderedTexture, vec2(texc.st));
-    //return;
+    // Cho does not yet have a uvst representation. therefor just show the view created in lightfield_raw
+    if (decode_mode == 2){
+        gl_FragColor = texture2D(renderedTexture, vec2(texc.st));
+        return;
+    }
 
     if (view_mode == 4){
         ivec2 uv_size = ivec2(15,15);

@@ -82,10 +82,6 @@ public slots:
 
 
     void setViewMode(QString v){ this->view_mode = v.toStdString(); updateLabel();}
-    void setSobelScale(double sc){ this->sobel_scale = sc; updateLabel();}
-    void setSobelKernel(int sk){ this->sobel_k_size = sk; updateLabel();}
-    void setGaussSigma(double gs){ this->gauss_sigma = gs; updateLabel();}
-    void setGaussKernel(int gk){ this->gauss_k_size = gk; updateLabel();}
 
 
     static cv::Mat translateImg(cv::Mat &img, int offsetx, int offsety){
@@ -97,21 +93,16 @@ public slots:
 protected:
     MyGraphicsView* view;
     cv::Mat input_img, output_img;
-    const int size_d = 10;
+    int size_d = 5;
 
 private:
     virtual void calculateDepth() = 0;
     void stereoLikeTaxonomy();
     cv::Mat generateDepthMapFromDisparity(cv::Mat dis);
     void generateFromUVST(bool show_epi = false);
-    std::pair<cv::Mat, cv::Mat> calculateDisparityFromEPI(cv::Mat epi, std::string result = "");
 
     std::string view_mode = "";
 
-    int sobel_k_size = 3;
-    float sobel_scale = 1.0f;
-    int gauss_k_size = 9;
-    float gauss_sigma = 2.0f;
 };
 
 #endif // IMAGEDEPTH_H

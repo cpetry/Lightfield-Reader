@@ -39,7 +39,9 @@ SOURCES += main.cpp \
     lfp_raw_view.cpp \
     calibration.cpp \
     depthfromfocus.cpp \
-    depthcostaware.cpp
+    depthcostaware.cpp \
+    depthredefinedisparity.cpp \
+    depthstereolike.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
@@ -50,7 +52,9 @@ HEADERS  += mainwindow.h \
     lfp_raw_view.h \
     calibration.h \
     depthfromfocus.h \
-    depthcostaware.h
+    depthcostaware.h \
+    depthredefinedisparity.h \
+    depthstereolike.h
 
 FORMS    += mainwindow.ui
 

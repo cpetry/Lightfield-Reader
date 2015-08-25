@@ -354,14 +354,14 @@ vec4 recalcPosAtUVST_Cho(vec2 uv, vec2 st){
                     return vec4(0,0,0,1);
                 vec2 img_pos1 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(1,0));
                 vec2 img_pos2 = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos) + vec2(0,0));
-                vec2 texel_pos1 = (centerLens_pos + img_pos1 + vec2(0,0)) / tex_dim;
-                vec2 texel_pos2 = (centerLens_pos + img_pos2 + vec2(0,0)) / tex_dim;
+                vec2 texel_pos1 = (centerLens_pos + img_pos1) / tex_dim;
+                vec2 texel_pos2 = (centerLens_pos + img_pos2) / tex_dim;
                 fragcol = (computeColorAt(texel_pos1) + computeColorAt(texel_pos2)) / 2.0;
             }
             else{                    // 4
                 //return vec4(0,0,0,1);
                 img_pos = lenslet_m * R_m * (size_st/2.0 - ivec2(img_pos));
-                vec2 texel_pos1 = ivec2(centerLens_pos + img_pos + vec2(0,0)) / tex_dim;
+                vec2 texel_pos1 = ivec2(centerLens_pos + img_pos) / tex_dim;
                 fragcol = (computeColorAt(texel_pos1));
             }
         }

@@ -7,9 +7,9 @@ void DepthFromFocus::calculateDepth(){
     const int size_t = input_img.rows/size_v;
 
     if (focusCost.empty())
-        focusCost = createFocusVolume(size_u, size_v, this->focus_threshold);
+        focusCost = createFocusVolume(size_u, size_v, this->focus_threshold, 1);
 
-    int algorithm=2;
+    int algorithm=1;
 
     cv::Mat cost_depth( size_t, size_s, CV_32FC1);
     for (int t=0; t < size_t; t++)
@@ -19,7 +19,7 @@ void DepthFromFocus::calculateDepth(){
         // Shape from Focus
         // algorithm 1
         // coarse resolution depth estimation
-        float threshold=0.2f;
+
         if (algorithm==1){
             float min_f = 9999, max_f = -9999;
             int min_d = size_d, max_d = 0;
@@ -34,7 +34,7 @@ void DepthFromFocus::calculateDepth(){
                     max_d = d;
                 }
             }
-            if (max_f < threshold)
+            if (max_f < threshold && use_threshold)
                 max_d = 0;
             cost_depth.at<float>(t, s) = max_d;
         }
@@ -103,7 +103,7 @@ cv::Mat DepthFromFocus::createFocusedImage(const cv::Mat image, const int size_u
     return focused_img;
 }
 
-cv::Mat DepthFromFocus::createFocusVolume(const int size_u, const int size_v, const float threshold){
+cv::Mat DepthFromFocus::createFocusVolume(const int size_u, const int size_v, const float threshold, const int radius){
     cv::Mat input_f;
     input_img.convertTo(input_f, CV_32FC3);
     int step = 1;
@@ -135,7 +135,7 @@ cv::Mat DepthFromFocus::createFocusVolume(const int size_u, const int size_v, co
         }
 
         // sum up Modified Laplacian
-        int R = 1; // Radius
+        int R = radius; // Radius
         for(int y=0; y < focused_img.rows; y++)
         for(int x=0; x < focused_img.cols; x++){
             float sum=0;

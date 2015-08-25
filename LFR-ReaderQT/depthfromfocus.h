@@ -24,21 +24,24 @@ public:
 
     void calculateDepth();
     cv::Mat createFocusedImage(const cv::Mat image, const int size_u, const int size_v, const float shift);
-    cv::Mat createFocusVolume(const int size_u, const int size_v, const float threshold);
+    cv::Mat createFocusVolume(const int size_u, const int size_v, const float threshold, const int radius);
 
 public slots:
     void setUseMaxFocus(bool b) { this->use_max_focus = b;  updateLabel();}
     void setUseMaxVariance(bool b) { this->use_max_variance = b;  updateLabel();}
-    void setFocusThreshold(double v) { this->focus_threshold = v; updateLabel();}
+    void setUseThreshold(bool b) { this->use_threshold = b;  updateLabel();}
     void setMaxVariance(double mv){ this->max_variance = mv; updateLabel();}
+    void setThreshold(double t){ this->threshold = t; updateLabel();}
+
 
 
 protected:
     float max_variance = 10.0f;
     double focus_threshold = 16.0f;
+    double threshold = 16.0f;
     cv::Mat focusCost;
 
-    bool use_max_focus = false, use_max_variance = false;
+    bool use_max_focus = false, use_max_variance = false, use_threshold = false;
 };
 
 #endif // DEPTHFROMFOCUS_H

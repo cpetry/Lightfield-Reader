@@ -24,6 +24,8 @@
 #include "depthfromfocus.h"
 #include "depthcostaware.h"
 #include "calibration.h"
+#include "depthredefinedisparity.h"
+#include "depthstereolike.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -891,6 +893,17 @@ void MainWindow::chooseGenerate_DepthMap(){
         connect(max_variance, SIGNAL(valueChanged(double)), dff, SLOT(setMaxVariance(double)));
         buttons_layout->addWidget(max_variance,2,2);
 
+        QCheckBox* check_threshold = new QCheckBox("Use Threshold");
+        check_threshold->setChecked(false);
+        connect(check_threshold, SIGNAL(clicked(bool)), dff, SLOT(setUseThreshold(bool)));
+        buttons_layout->addWidget(check_threshold,3,1);
+
+        QDoubleSpinBox* threshold = new QDoubleSpinBox();
+        threshold->setValue(16.0);
+        threshold->setMaximum(255.0);
+        connect(threshold, SIGNAL(valueChanged(double)), dff, SLOT(setThreshold(double)));
+        buttons_layout->addWidget(threshold,3,2);
+
 
         view_layout->addWidget(buttons_widget);
 
@@ -942,23 +955,23 @@ void MainWindow::chooseGenerate_DepthMap(){
 
 
         QCheckBox* check_consistency = new QCheckBox("Consistency Cue");
-        check_consistency->setChecked(true);
+        check_consistency->setChecked(dca->getUseConsistency());
         connect(check_consistency, SIGNAL(clicked(bool)), dca, SLOT(setConsistency(bool)));
         buttons_layout->addWidget(check_consistency,3,1);
         QCheckBox* check_focus = new QCheckBox("Focus Cue");
-        check_focus->setChecked(true);
+        check_focus->setChecked(dca->getUseFocusCue());
         connect(check_focus, SIGNAL(clicked(bool)), dca, SLOT(setFocusCue(bool)));
         buttons_layout->addWidget(check_focus,3,2);
         QCheckBox* check_filter_focus_sml_0 = new QCheckBox("filter Focus SML 0");
         connect(check_filter_focus_sml_0, SIGNAL(clicked(bool)), dca, SLOT(setFilterFocusSml0(bool)));
-        check_filter_focus_sml_0->setChecked(true);
+        check_filter_focus_sml_0->setChecked(dca->getFilterFocusSml0());
         buttons_layout->addWidget(check_filter_focus_sml_0,4,1);
         QCheckBox* check_filter_focus_bound = new QCheckBox("filter Focus Bound");
-        check_filter_focus_bound->setChecked(true);
+        check_filter_focus_bound->setChecked(dca->getFilterFocusBound());
         connect(check_filter_focus_bound, SIGNAL(clicked(bool)), dca, SLOT(setFilterFocusBound(bool)));
         buttons_layout->addWidget(check_filter_focus_bound,4,2);
         QCheckBox* check_filter_cons_variance = new QCheckBox("filter Cons Variance");
-        check_filter_cons_variance->setChecked(true);
+        check_filter_cons_variance->setChecked(dca->getFilterConsVariance());
         connect(check_filter_cons_variance, SIGNAL(clicked(bool)), dca, SLOT(setFilterConsVariance(bool)));
         buttons_layout->addWidget(check_filter_cons_variance,5,1);
         QDoubleSpinBox* max_variance = new QDoubleSpinBox();
@@ -967,7 +980,7 @@ void MainWindow::chooseGenerate_DepthMap(){
         connect(max_variance, SIGNAL(valueChanged(double)), dca, SLOT(setMaxVariance(double)));
         buttons_layout->addWidget(max_variance,5,2);
         QCheckBox* check_fill_holes = new QCheckBox("fill up holes");
-        check_fill_holes->setChecked(true);
+        check_fill_holes->setChecked(dca->getFillUpHoles());
         connect(check_fill_holes, SIGNAL(clicked(bool)), dca, SLOT(setFillUpHoles(bool)));
         buttons_layout->addWidget(check_fill_holes,6,1);
 
@@ -976,7 +989,130 @@ void MainWindow::chooseGenerate_DepthMap(){
         //tabWidget->addTab(view_widget,"Depth Stereo Taxonomy");
         tabWidget->addTab(cost_aware_widget,"Depth Cost Aware");
     }
-    //QImage depth = imagedepth::generate();
+
+    /////////////////////////////
+    /// Depth Stereo Like
+    ///
+    {
+        QHBoxLayout* view_layout = new QHBoxLayout();
+        QWidget* stereo_like_widget = new QWidget();
+        stereo_like_widget->setLayout(view_layout);
+        MyGraphicsView* view = new MyGraphicsView(this);
+
+        view_layout->addWidget(view);
+
+        DepthStereoLike* dsl = new DepthStereoLike(view);
+
+        QGridLayout* buttons_layout = new QGridLayout();
+        QWidget* buttons_widget = new QWidget();
+        buttons_widget->setMaximumSize(300,1000);
+        buttons_widget->setLayout(buttons_layout);
+
+        QPushButton* load = new QPushButton("Load Image");
+        connect(load, SIGNAL(clicked()), dsl, SLOT(loadImage()));
+        buttons_layout->addWidget(load,0,1);
+
+        QDoubleSpinBox* sobel_scale = new QDoubleSpinBox();
+        sobel_scale->setValue(2.0);
+        QSpinBox* sobel_k_size = new QSpinBox();
+        sobel_k_size->setSingleStep(2);
+        sobel_k_size->setMaximum(31);
+        sobel_k_size->setMinimum(1);
+        sobel_k_size->setValue(3);
+        QDoubleSpinBox* gauss_sigma = new QDoubleSpinBox();
+        gauss_sigma->setValue(2.0);
+        QSpinBox* gauss_kernel = new QSpinBox();
+        gauss_kernel->setSingleStep(2);
+        gauss_kernel->setValue(9);
+        gauss_kernel->setMaximum(31);
+        gauss_kernel->setMinimum(1);
+        connect(sobel_scale, SIGNAL(valueChanged(double)), dsl, SLOT(setSobelScale(double)));
+        connect(sobel_k_size, SIGNAL(valueChanged(int)), dsl, SLOT(setSobelKernel(int)));
+        connect(gauss_sigma, SIGNAL(valueChanged(double)), dsl, SLOT(setGaussSigma(double)));
+        connect(gauss_kernel, SIGNAL(valueChanged(int)), dsl, SLOT(setGaussKernel(int)));
+
+        buttons_layout->addWidget(sobel_scale,3,1);
+        buttons_layout->addWidget(sobel_k_size,3,2);
+        buttons_layout->addWidget(gauss_sigma,4,1);
+        buttons_layout->addWidget(gauss_kernel,4,2);
+
+        view_layout->addWidget(buttons_widget);
+
+        //tabWidget->addTab(view_widget,"Depth Stereo Taxonomy");
+        tabWidget->addTab(stereo_like_widget,"Depth Stereo Like");
+    }
+
+    /////////////////////////////
+    /// Redefine disparity map (errors)
+    ///
+    {
+        QHBoxLayout* view_layout = new QHBoxLayout();
+        QWidget* redefine_disparity_widget = new QWidget();
+        redefine_disparity_widget->setLayout(view_layout);
+        MyGraphicsView* view = new MyGraphicsView(this);
+
+        view_layout->addWidget(view);
+
+        DepthRedefineDisparity* dff = new DepthRedefineDisparity(view);
+
+        QGridLayout* buttons_layout = new QGridLayout();
+        QWidget* buttons_widget = new QWidget();
+        buttons_widget->setMaximumSize(300,1000);
+        buttons_widget->setLayout(buttons_layout);
+
+        QPushButton* load = new QPushButton("Load Image");
+        connect(load, SIGNAL(clicked()), dff, SLOT(loadImage()));
+        buttons_layout->addWidget(load,0,1);
+
+        QPushButton* process = new QPushButton("Process");
+        connect(process, SIGNAL(clicked()), dff, SLOT(fillInHolesInDepth()));
+        buttons_layout->addWidget(process,0,2);
+
+        QCheckBox* check_small_holes = new QCheckBox("Small holes");
+        check_small_holes->setChecked(true);
+        connect(check_small_holes, SIGNAL(clicked(bool)), dff, SLOT(setOptionSmallHoles(bool)));
+        buttons_layout->addWidget(check_small_holes,2,1);
+
+        QSpinBox* kernel_median = new QSpinBox();
+        kernel_median->setValue(3);
+        kernel_median->setSingleStep(2);
+        kernel_median->setMinimum(1);
+        kernel_median->setMaximum(21);
+        connect(kernel_median, SIGNAL(valueChanged(int)), dff, SLOT(setMedianKernel(int)));
+        buttons_layout->addWidget(kernel_median,2,2);
+
+        QCheckBox* check_middle_holes = new QCheckBox("Middle holes");
+        check_middle_holes->setChecked(true);
+        connect(check_middle_holes, SIGNAL(clicked(bool)), dff, SLOT(setOptionMiddleHoles(bool)));
+        buttons_layout->addWidget(check_middle_holes,3,1);
+
+        QSpinBox* kernel = new QSpinBox();
+        kernel->setValue(10);
+        kernel->setSingleStep(1);
+        kernel->setMinimum(2);
+        kernel->setMaximum(20);
+        connect(kernel, SIGNAL(valueChanged(int)), dff, SLOT(setCloseKernel(int)));
+        buttons_layout->addWidget(kernel,3,2);
+
+        QCheckBox* check_big_holes = new QCheckBox("Big holes");
+        check_big_holes->setChecked(true);
+        connect(check_big_holes, SIGNAL(clicked(bool)), dff, SLOT(setOptionBigHoles(bool)));
+        buttons_layout->addWidget(check_big_holes,4,1);
+
+
+        QSpinBox* big_holes_max_size = new QSpinBox();
+        big_holes_max_size->setValue(50);
+        big_holes_max_size->setSingleStep(1);
+        big_holes_max_size->setMinimum(2);
+        big_holes_max_size->setMaximum(1000);
+        connect(big_holes_max_size, SIGNAL(valueChanged(int)), dff, SLOT(setBigHolesMaxSize(int)));
+        buttons_layout->addWidget(big_holes_max_size,4,2);
+
+        view_layout->addWidget(buttons_widget);
+
+
+        tabWidget->addTab(redefine_disparity_widget,"Redefine Disparity");
+    }
 
     /*
     QComboBox* cb = new QComboBox(this);

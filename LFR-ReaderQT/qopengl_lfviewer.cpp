@@ -494,9 +494,9 @@ void QOpenGL_LFViewer::initializeGL(){
     float N = 15;//lens_size / pix_size; // 15 number of pixels per lenslet
     int c_pix = 7; // translational pixel offset ?!
     double c_Mx = meta_infos.mla_centerOffset_x / pix_size;   // optical center offset in mm
-    double c_My = meta_infos.mla_centerOffset_y / pix_size;    // optical center offset in mm
-    double c_mux = -7.3299932479858395e-6 / pix_size;  // mla offset in mm
-    double c_muy = 5.5686492919921878e-6 / pix_size;   // mla offset in mm
+    double c_My = -meta_infos.mla_centerOffset_y / pix_size;    // optical center offset in mm
+    double c_mux = -7.3299932479858395e-6;  // mla offset in mm
+    double c_muy = 5.5686492919921878e-6;   // mla offset in mm
     double d_mu = 3.6999999999999998e-5;  // mla offset in mm
     double f_M = 0.011542153404246169;    // focal length
     double exitPupilOffset = 0.11559105682373047; // distance from the pupil to microlens plane
@@ -646,6 +646,7 @@ void QOpenGL_LFViewer::paintGL(){
     focusprogram->setUniformValue("focus", focus);
     focusprogram->setUniformValue("view_mode", opengl_view_mode);
     focusprogram->setUniformValue("focus_spread", focus_spread);
+    focusprogram->setUniformValue("decode_mode", opengl_decode_mode);
 
     glViewport(0,0,width(),height()); // Render on the screen
     glClearColor(0.2, 0.2, 0.2, 1);
