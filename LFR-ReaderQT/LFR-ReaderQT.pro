@@ -41,7 +41,9 @@ SOURCES += main.cpp \
     depthfromfocus.cpp \
     depthcostaware.cpp \
     depthredefinedisparity.cpp \
-    depthstereolike.cpp
+    depthstereolike.cpp \
+    depthstereo.cpp \
+    depthfromepipolarimages.cpp
 
 HEADERS  += mainwindow.h \
     lfp_reader.h \
@@ -54,7 +56,9 @@ HEADERS  += mainwindow.h \
     depthfromfocus.h \
     depthcostaware.h \
     depthredefinedisparity.h \
-    depthstereolike.h
+    depthstereolike.h \
+    depthstereo.h \
+    depthfromepipolarimages.h
 
 FORMS    += mainwindow.ui
 
@@ -77,6 +81,7 @@ win32 {
                    $$(PCL_ROOT)/3rdParty/Boost/include/boost-1_57 \
                    $$(PCL_ROOT)/3rdParty/Eigen/eigen3 \
                    $$(PCL_ROOT)/3rdParty/VTK/include/vtk-6.2 \
+                   $$(PCL_ROOT)/3rdParty/FLANN/include \
                    $$(AMDAPPSDKROOT)/include
 
     LIBS += -L$$(OPENCV_DIR)/x64/vc12/lib \
@@ -86,6 +91,8 @@ win32 {
             -L$$(PCL_ROOT)/3rdParty/Boost/lib \
             -L$$(PCL_ROOT)/3rdParty/VTK/lib \
             -L$$(PCL_ROOT)/3rdParty/VTK/bin \
+            -L$$(PCL_ROOT)/3rdParty/FLANN/lib \
+            -L$$(PCL_ROOT)/3rdParty/FLANN/bin \
             -L./dependencies
 
     CONFIG(debug, debug | release) {
@@ -94,7 +101,6 @@ win32 {
             -lopencv_contrib2411d \
             -lopencv_core2411d \
             -lopencv_features2d2411d \
-            -lopencv_flann2411d \
             -lopencv_gpu2411d \
             -lopencv_highgui2411d \
             -lopencv_imgproc2411d \
@@ -124,7 +130,6 @@ win32 {
             -lopencv_contrib2411 \
             -lopencv_core2411 \
             -lopencv_features2d2411 \
-            -lopencv_flann2411 \
             -lopencv_gpu2411 \
             -lopencv_highgui2411 \
             -lopencv_imgproc2411 \

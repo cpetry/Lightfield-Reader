@@ -26,6 +26,8 @@
 #include "calibration.h"
 #include "depthredefinedisparity.h"
 #include "depthstereolike.h"
+#include "depthfromepipolarimages.h"
+#include "depthstereo.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -816,10 +818,8 @@ void MainWindow::chooseCreate3DScene(){
     QWidget* display_options = new QWidget();
     QVBoxLayout* display_options_layout = new QVBoxLayout();
     display_options->setLayout(display_options_layout);
-    QPushButton *adddepth = new QPushButton("Add DepthMap");
-    connect( adddepth, SIGNAL(clicked()), recon, SLOT(addDepthMap()) );
-    QPushButton *calc_pointcloud = new QPushButton("Calc PointCloud");
-    connect( calc_pointcloud, SIGNAL(clicked()), recon, SLOT(calculatePointCloud()) );
+    QPushButton *pcfmdms = new QPushButton("Point Cloud From DepthMaps");
+    connect( pcfmdms, SIGNAL(clicked()), recon, SLOT(calcPointCloudFromMultipleDepthMaps()) );
     QPushButton *appr_normals = new QPushButton("Approximate Normals");
     connect( appr_normals, SIGNAL(clicked()), recon, SLOT(approximateNormals()) );
     QPushButton *show_pointcloud = new QPushButton("Show PointCloud");
@@ -834,8 +834,7 @@ void MainWindow::chooseCreate3DScene(){
     connect( show_mesh, SIGNAL(clicked()), recon, SLOT(showMesh()) );
     //QLabel *fps_display = new QLabel("Fps: ");
     //connect( opengl_viewer, SIGNAL(refreshFPS(QString)), fps_display, SLOT(setText(QString)));
-    display_options_layout->addWidget(adddepth);
-    display_options_layout->addWidget(calc_pointcloud);
+    display_options_layout->addWidget(pcfmdms);
     display_options_layout->addWidget(appr_normals);
     display_options_layout->addWidget(show_pointcloud);
     display_options_layout->addWidget(save_pointcloud);
@@ -849,6 +848,58 @@ void MainWindow::chooseCreate3DScene(){
 void MainWindow::chooseGenerate_DepthMap(){
 
     tabWidget->clear();
+
+    /////////////////////////////
+    /// Depth Stereo Like
+    ///
+    {
+        QHBoxLayout* view_layout = new QHBoxLayout();
+        QWidget* stereo_like_widget = new QWidget();
+        stereo_like_widget->setLayout(view_layout);
+        MyGraphicsView* view = new MyGraphicsView(this);
+
+        view_layout->addWidget(view);
+
+        DepthStereoLike* dsl = new DepthStereoLike(view);
+
+        QGridLayout* buttons_layout = new QGridLayout();
+        QWidget* buttons_widget = new QWidget();
+        buttons_widget->setMaximumSize(300,1000);
+        buttons_widget->setLayout(buttons_layout);
+
+        QPushButton* load = new QPushButton("Load Image");
+        connect(load, SIGNAL(clicked()), dsl, SLOT(loadImage()));
+        buttons_layout->addWidget(load,0,1);
+
+        QDoubleSpinBox* sobel_scale = new QDoubleSpinBox();
+        sobel_scale->setValue(2.0);
+        QSpinBox* sobel_k_size = new QSpinBox();
+        sobel_k_size->setSingleStep(2);
+        sobel_k_size->setMaximum(31);
+        sobel_k_size->setMinimum(1);
+        sobel_k_size->setValue(3);
+        QDoubleSpinBox* gauss_sigma = new QDoubleSpinBox();
+        gauss_sigma->setValue(2.0);
+        QSpinBox* gauss_kernel = new QSpinBox();
+        gauss_kernel->setSingleStep(2);
+        gauss_kernel->setValue(9);
+        gauss_kernel->setMaximum(31);
+        gauss_kernel->setMinimum(1);
+        connect(sobel_scale, SIGNAL(valueChanged(double)), dsl, SLOT(setSobelScale(double)));
+        connect(sobel_k_size, SIGNAL(valueChanged(int)), dsl, SLOT(setSobelKernel(int)));
+        connect(gauss_sigma, SIGNAL(valueChanged(double)), dsl, SLOT(setGaussSigma(double)));
+        connect(gauss_kernel, SIGNAL(valueChanged(int)), dsl, SLOT(setGaussKernel(int)));
+
+        buttons_layout->addWidget(sobel_scale,3,1);
+        buttons_layout->addWidget(sobel_k_size,3,2);
+        buttons_layout->addWidget(gauss_sigma,4,1);
+        buttons_layout->addWidget(gauss_kernel,4,2);
+
+        view_layout->addWidget(buttons_widget);
+
+        //tabWidget->addTab(view_widget,"Depth Stereo Taxonomy");
+        tabWidget->addTab(stereo_like_widget,"Depth Stereo Like");
+    }
 
     /////////////////////////////
     /// Depth From Focus
@@ -991,7 +1042,7 @@ void MainWindow::chooseGenerate_DepthMap(){
     }
 
     /////////////////////////////
-    /// Depth Stereo Like
+    /// Depth From Epipolar Images
     ///
     {
         QHBoxLayout* view_layout = new QHBoxLayout();
@@ -1001,7 +1052,7 @@ void MainWindow::chooseGenerate_DepthMap(){
 
         view_layout->addWidget(view);
 
-        DepthStereoLike* dsl = new DepthStereoLike(view);
+        DepthFromEpipolarImages* dfei = new DepthFromEpipolarImages(view);
 
         QGridLayout* buttons_layout = new QGridLayout();
         QWidget* buttons_widget = new QWidget();
@@ -1009,7 +1060,7 @@ void MainWindow::chooseGenerate_DepthMap(){
         buttons_widget->setLayout(buttons_layout);
 
         QPushButton* load = new QPushButton("Load Image");
-        connect(load, SIGNAL(clicked()), dsl, SLOT(loadImage()));
+        connect(load, SIGNAL(clicked()), dfei, SLOT(loadImage()));
         buttons_layout->addWidget(load,0,1);
 
         QDoubleSpinBox* sobel_scale = new QDoubleSpinBox();
@@ -1026,21 +1077,23 @@ void MainWindow::chooseGenerate_DepthMap(){
         gauss_kernel->setValue(9);
         gauss_kernel->setMaximum(31);
         gauss_kernel->setMinimum(1);
-        connect(sobel_scale, SIGNAL(valueChanged(double)), dsl, SLOT(setSobelScale(double)));
-        connect(sobel_k_size, SIGNAL(valueChanged(int)), dsl, SLOT(setSobelKernel(int)));
-        connect(gauss_sigma, SIGNAL(valueChanged(double)), dsl, SLOT(setGaussSigma(double)));
-        connect(gauss_kernel, SIGNAL(valueChanged(int)), dsl, SLOT(setGaussKernel(int)));
+        connect(sobel_scale, SIGNAL(valueChanged(double)), dfei, SLOT(setSobelScale(double)));
+        connect(sobel_k_size, SIGNAL(valueChanged(int)), dfei, SLOT(setSobelKernel(int)));
+        connect(gauss_sigma, SIGNAL(valueChanged(double)), dfei, SLOT(setGaussSigma(double)));
+        connect(gauss_kernel, SIGNAL(valueChanged(int)), dfei, SLOT(setGaussKernel(int)));
 
-        buttons_layout->addWidget(sobel_scale,3,1);
-        buttons_layout->addWidget(sobel_k_size,3,2);
-        buttons_layout->addWidget(gauss_sigma,4,1);
-        buttons_layout->addWidget(gauss_kernel,4,2);
+        buttons_layout->addWidget(sobel_scale,1,1);
+        buttons_layout->addWidget(sobel_k_size,1,2);
+        buttons_layout->addWidget(gauss_sigma,2,1);
+        buttons_layout->addWidget(gauss_kernel,2,2);
 
         view_layout->addWidget(buttons_widget);
 
-        //tabWidget->addTab(view_widget,"Depth Stereo Taxonomy");
-        tabWidget->addTab(stereo_like_widget,"Depth Stereo Like");
+        //tabWidget->addTab(view_widget,"Depth From EPIs");
+        tabWidget->addTab(stereo_like_widget,"Depth From EPIs");
     }
+
+
 
     /////////////////////////////
     /// Redefine disparity map (errors)

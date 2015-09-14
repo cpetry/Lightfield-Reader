@@ -498,7 +498,8 @@ void QOpenGL_LFViewer::initializeGL(){
     double c_mux = -7.3299932479858395e-6;  // mla offset in mm
     double c_muy = 5.5686492919921878e-6;   // mla offset in mm
     double d_mu = 3.6999999999999998e-5;  // mla offset in mm
-    double f_M = 0.011542153404246169;    // focal length
+    //double f_M = 0.011542153404246169;    // focal length
+    double f_M = 0.0037;    // focal length
     double exitPupilOffset = 0.11559105682373047; // distance from the pupil to microlens plane
     double H_data[25];
     DepthCostAware::calcH(pix_size, lens_size, N, c_pix, c_Mx, c_My,
@@ -785,6 +786,7 @@ void QOpenGL_LFViewer::mouseMoveEvent(QMouseEvent *event)
         double c_muy = 5.5686492919921878e-6;// / pix_size;   // mla offset in mm
         double d_mu = 3.6999999999999998e-5;  // mla offset in mm
         double f_M = 0.011542153404246169;    // focal length
+        //double f_M = 0.0037;    // focal length
         double exitPupilOffset = 0.11559105682373047; // distance from the pupil to microlens plane
         double H_data[25];
         DepthCostAware::calcH(pix_size, lens_size, N, c_pix, c_Mx, c_My,

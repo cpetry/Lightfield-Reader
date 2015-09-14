@@ -32,6 +32,7 @@ public slots:
     void setUseThreshold(bool b) { this->use_threshold = b;  updateLabel();}
     void setMaxVariance(double mv){ this->max_variance = mv; updateLabel();}
     void setThreshold(double t){ this->threshold = t; updateLabel();}
+    void setFocusThreshold(double t){ this->focus_threshold = t; updateLabel();}
 
 
 

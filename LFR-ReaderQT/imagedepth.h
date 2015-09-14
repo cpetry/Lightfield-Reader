@@ -80,9 +80,7 @@ public slots:
     void loadImage();
     void updateLabel();
 
-
     void setViewMode(QString v){ this->view_mode = v.toStdString(); updateLabel();}
-
 
     static cv::Mat translateImg(cv::Mat &img, int offsetx, int offsety){
         cv::Mat trans_mat = (cv::Mat_<double>(2,3) << 1, 0, offsetx, 0, 1, offsety);
@@ -93,13 +91,11 @@ public slots:
 protected:
     MyGraphicsView* view;
     cv::Mat input_img, output_img;
-    int size_d = 5;
+    int size_d = 20;
 
 private:
     virtual void calculateDepth() = 0;
-    void stereoLikeTaxonomy();
     cv::Mat generateDepthMapFromDisparity(cv::Mat dis);
-    void generateFromUVST(bool show_epi = false);
 
     std::string view_mode = "";
 
