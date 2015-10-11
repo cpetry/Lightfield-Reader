@@ -31,6 +31,7 @@ public slots:
     void setBigHolesMaxSize(int k){option_big_holes_max_size = k;}
 
     void loadImage();
+    void saveImage();
 
     void updateLabel(){
         cv::normalize(output_img, output_img, 0, 1, CV_MINMAX, CV_32F);
@@ -39,11 +40,13 @@ public slots:
     }
 
     void fillInHolesInDepth();
+    void fillUpHoles();
 
 private:
 
     MyGraphicsView* view;
     cv::Mat input_img, output_img;
+    cv::Mat lightfield_img;
 
     bool option_small_holes = true;
     bool option_middle_holes = true;

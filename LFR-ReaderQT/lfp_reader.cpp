@@ -1,6 +1,7 @@
 #include "lfp_reader.h"
 #include "mainwindow.h"
 
+#include <QFile>
 
 unsigned char LFP[] = {0x89, 0x4C, 0x46, 0x50, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x01};
 unsigned char LFM[] = {0x89, 0x4C, 0x46, 0x4D, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x00};
@@ -197,12 +198,25 @@ bool LFP_Reader::readSection(MainWindow* main, std::basic_ifstream<unsigned char
 
         // if we want to save several images, we dont need tabs
         if(!save_file_name.empty()){
-            lfp_raw_view* mgv = new lfp_raw_view(NULL, image, meta_infos);
-            image = mgv->demosaic(3);
+
+            //lfp_raw_view* mgv = new lfp_raw_view(NULL, image, meta_infos);
+            //image = mgv->demosaic(3);
+
 
             bool saved = image.save(QString::fromStdString(save_file_name));
-            if (saved)
+            if (saved){
                 qDebug() << "Saved raw to " << QString::fromStdString(save_file_name);
+                // saving meta data
+                QString meta_string = LFP_Reader::createMetaInfoText(meta_infos);
+
+                QString filename = QString::fromStdString(save_file_name).split(".")[0] + ".txt";
+                QFile file(filename);
+                if (file.open(QIODevice::ReadWrite)) {
+                    QTextStream stream(&file);
+                    stream << meta_string << endl;
+                }
+                file.close();
+            }
             else
                 qDebug() << "Could not save to " << QString::fromStdString(save_file_name);
         }
@@ -255,6 +269,11 @@ void LFP_Reader::parseLFMetaInfo(QString meta_info){
         for (int i = 0; i < 9; i++)
             meta_infos.cc[i] = atof(cc_split[i].c_str());
 
+        pos = smeta.find("color");
+        std::string gamma = getValueOf("\"gamma\"", smeta, int(pos));
+        if (gamma != "error")
+            meta_infos.gamma = atof(gamma.c_str());
+
         pos = smeta.find("whiteBalanceGain");
         meta_infos.r_bal = atof(getValueOf("\"r\"", smeta, int(pos)).c_str());
         meta_infos.b_bal = atof(getValueOf("\"b\"", smeta, int(pos)).c_str());
@@ -269,27 +288,88 @@ void LFP_Reader::parseLFMetaInfo(QString meta_info){
         pos = smeta.find("scaleFactor");
         meta_infos.mla_scale_x = atof(getValueOf("\"x\"", smeta, int(pos)).c_str());
         meta_infos.mla_scale_y = atof(getValueOf("\"y\"", smeta, int(pos)).c_str());
+
         pos = smeta.find("sensorOffset");
-        meta_infos.mla_centerOffset_x = atof(getValueOf("\"x\"", smeta, int(pos)).c_str());;
-        meta_infos.mla_centerOffset_y = atof(getValueOf("\"y\"", smeta, int(pos)).c_str());;
+        meta_infos.mla_centerOffset_x = atof(getValueOf("\"x\"", smeta, int(pos)).c_str());
+        meta_infos.mla_centerOffset_y = atof(getValueOf("\"y\"", smeta, int(pos)).c_str());
+        meta_infos.mla_centerOffset_z = atof(getValueOf("\"z\"", smeta, int(pos)).c_str());
 
-        /*std::cout << meta_infos.bits << std::endl;
-        std::cout << meta_infos.width << std::endl;
-        std::cout << meta_infos.height << std::endl;
-        std::cout << meta_infos.cc[0] << std::endl;
-        std::cout << meta_infos.r_bal << std::endl;
-        std::cout << meta_infos.b_bal << std::endl;
-        std::cout << meta_infos.mla_rotation << std::endl;
-        std::cout << meta_infos.mla_scale_x << std::endl;
-        std::cout << meta_infos.mla_scale_y << std::endl;
-        std::cout << meta_infos.mla_lensPitch << std::endl;
-        std::cout << meta_infos.mla_centerOffset_x << std::endl;
-        std::cout << meta_infos.mla_centerOffset_y << std::endl;*/
+        pos = smeta.find("lens");
+        pos = smeta.find("exitPupilOffset");
+        meta_infos.exitPupilOffset = atof(getValueOf("\"z\"", smeta, int(pos)).c_str());
 
+        pos = smeta.find("opticalCenterOffset");
+        meta_infos.lens_centerOffset_x = atof(getValueOf("\"x\"", smeta, int(pos)).c_str());
+        meta_infos.lens_centerOffset_y = atof(getValueOf("\"y\"", smeta, int(pos)).c_str());
+
+        meta_infos.focallength = atof(getValueOf("\"focalLength\"", smeta, int(pos)).c_str());
     }
 }
 
+QString LFP_Reader::createMetaInfoText(LFP_Reader::lf_meta meta_infos){
+    QString meta_string;
+    meta_string += "\"image\": { \n";
+        meta_string += "\t\"pixelPacking\": { \n";
+            meta_string += "\t\t\"bitsPerPixel\": " + QString::number(meta_infos.bits) + ",\n";
+            meta_string += "\t\t\"endianness\": \"little\"\n";
+        meta_string += "\t},\n";
+        meta_string += "\t\"width\": " + QString::number(meta_infos.width) + ",\n";
+        meta_string += "\t\"height\": " + QString::number(meta_infos.height) + ",\n";
+        meta_string += "\t\"modulationExposureBias\": " + QString::number(meta_infos.modulationExposureBias, 'g', 16) + ",\n";
+        meta_string += "\t\"color\": { \n";
+            meta_string += "\t\t\"gamma\": " + QString::number(meta_infos.gamma, 'g', 16) + ",\n";
+            meta_string += "\t\t\"whiteBalanceGain\": { \n";
+                meta_string += "\t\t\t\"gr\": " + QString::number(1.0) + ",\n";
+                meta_string += "\t\t\t\"r\": " + QString::number(meta_infos.r_bal, 'g', 16) + ",\n";
+                meta_string += "\t\t\t\"b\": " + QString::number(meta_infos.b_bal, 'g', 16) + ",\n";
+                meta_string += "\t\t\t\"gb\": " + QString::number(1.0) + "\n";
+            meta_string += "\t\t},\n";
+            meta_string += QString("\t\t\"ccm\": [\n")
+                    + "\t\t\t" + QString::number(meta_infos.cc[0], 'g', 16) + ",\n"
+                    + "\t\t\t" + QString::number(meta_infos.cc[1], 'g', 16) + ",\n"
+                    + "\t\t\t" + QString::number(meta_infos.cc[2], 'g', 16) + ",\n"
+                    + "\t\t\t" + QString::number(meta_infos.cc[3], 'g', 16) + ",\n"
+                    + "\t\t\t" + QString::number(meta_infos.cc[4], 'g', 16) + ",\n"
+                    + "\t\t\t" + QString::number(meta_infos.cc[5], 'g', 16) + ",\n"
+                    + "\t\t\t" + QString::number(meta_infos.cc[6], 'g', 16) + ",\n"
+                    + "\t\t\t" + QString::number(meta_infos.cc[7], 'g', 16) + ",\n"
+                    + "\t\t\t" + QString::number(meta_infos.cc[8], 'g', 16) + "\n"
+                    + "\t\t]\n";
+        meta_string += "\t}\n";
+    meta_string += "}\n";
 
+    meta_string += "\"devices\": { \n";
+        meta_string += "\t\"sensor\": { \n";
+            meta_string += "\t\t\"pixelPitch\": " + QString::number(meta_infos.mla_pixelPitch, 'g', 16) + "\n";
+        meta_string += "\t}\n";
+
+        meta_string += "\t\"mla\": { \n";
+            meta_string += "\t\t\"rotation\": " + QString::number(meta_infos.mla_rotation, 'g', 16) + ",\n";
+            meta_string += "\t\t\"scaleFactor\": { \n";
+                meta_string += "\t\t\t\"x\": " + QString::number(meta_infos.mla_scale_x, 'g', 16) + ",\n";
+                meta_string += "\t\t\t\"y\": " + QString::number(meta_infos.mla_scale_y, 'g', 16) + "\n";
+            meta_string += "\t\t},\n";
+            meta_string += "\t\t\"lensPitch\": " + QString::number(meta_infos.mla_lensPitch, 'g', 16) + "\n";
+            meta_string += "\t\t\"sensorOffset\": { \n";
+                meta_string += "\t\t\t\"x\": " + QString::number(meta_infos.mla_centerOffset_x, 'g', 16) + ",\n";
+                meta_string += "\t\t\t\"y\": " + QString::number(meta_infos.mla_centerOffset_y, 'g', 16) + ",\n";
+                meta_string += "\t\t\t\"z\": " + QString::number(meta_infos.mla_centerOffset_z, 'g', 16) + "\n";
+            meta_string += "\t\t}\n";
+        meta_string += "\t},\n";
+        meta_string += "\t\"lens\": { \n";
+            meta_string += "\t\t\"exitPupilOffset\": { \n";
+                meta_string += "\t\t\t\"z\": " + QString::number(meta_infos.exitPupilOffset, 'g', 16) + "\n";
+            meta_string += "\t\t},\n";
+            meta_string += "\t\t\"opticalCenterOffset\": { \n";
+                meta_string += "\t\t\t\"x\": " + QString::number(meta_infos.lens_centerOffset_x, 'g', 16) + ",\n";
+                meta_string += "\t\t\t\"y\": " + QString::number(meta_infos.lens_centerOffset_y, 'g', 16) + "\n";
+            meta_string += "\t\t},\n";
+            meta_string += "\t\t\"focalLength\": " + QString::number(meta_infos.focallength, 'g', 16) + "\n";
+
+        meta_string += "\t}\n";
+    meta_string += "}";
+    return meta_string;
+}
 
 bool LFP_Reader::read_RAWFile(MainWindow* main, std::string file, std::string save_file_name ){
     std::basic_ifstream<unsigned char> input(file, std::ifstream::binary);
@@ -305,8 +385,10 @@ bool LFP_Reader::read_RAWFile(MainWindow* main, std::string file, std::string sa
         //image = mgv->demosaic(3);
 
         bool saved = image.save(QString::fromStdString(save_file_name));
-        if (saved)
+        if (saved){
             qDebug() << "Saved raw to " << QString::fromStdString(save_file_name);
+
+        }
         else
             qDebug() << "Could not save to " << QString::fromStdString(save_file_name);
     }
@@ -348,6 +430,8 @@ bool LFP_Reader::read_lfp(MainWindow* main, std::string file, std::string raw_fi
     for(int i = 0; i < sizeof(types_illum)/sizeof(HEADER_TYPE); i++)
         if(!readSection(main, input, ptypes[i], raw_file_name))
             return false;
+
+
 
     return true;
 }

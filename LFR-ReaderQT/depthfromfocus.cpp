@@ -7,9 +7,7 @@ void DepthFromFocus::calculateDepth(){
     const int size_t = input_img.rows/size_v;
 
     if (focusCost.empty())
-        focusCost = createFocusVolume(size_u, size_v, this->focus_threshold, 1);
-
-    int algorithm=1;
+        focusCost = createFocusVolume(size_u, size_v, 0, 1);
 
     cv::Mat cost_depth( size_t, size_s, CV_32FC1);
     for (int t=0; t < size_t; t++)
@@ -75,7 +73,7 @@ void DepthFromFocus::calculateDepth(){
             float threshold_3 = this->focus_threshold, threshold_4 = max_variance;
             if (use_max_focus && F_peak < threshold_3
             || use_max_variance && sigma > threshold_4)
-                cost_depth.at<float>(t, s) = size_d;
+                cost_depth.at<float>(t, s) = 0;
             else
                 cost_depth.at<float>(t, s) = d_;
         }
@@ -90,6 +88,12 @@ cv::Mat DepthFromFocus::createFocusedImage(const cv::Mat image, const int size_u
     cv::Mat shifted_img = cv::Mat::zeros(size_t, size_s, CV_32FC3);
     for (int v=0; v<size_v; v++)
     for (int u=0; u<size_u; u++){
+        if (u + v <= 2 ||
+            (size_u - u) + v <= 2 ||
+            (size_u - u) + (size_v - v) <= 2 ||
+            u + (size_v - v) <= 2)
+            continue;
+
         // (src1 * alpha + src2 * beta + gamma)
         int x = u * size_s + static_cast<int>(shift*(u-size_u/2)+0.5f);
         int y = v * size_t + static_cast<int>(shift*(v-size_v/2)+0.5f);

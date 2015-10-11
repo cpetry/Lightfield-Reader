@@ -1,5 +1,6 @@
 #include "depthcostaware.h"
-
+#include <QMessageBox>
+#include <QCoreApplication>
 
 void DepthCostAware::calculateDepth(){
     const int size_u = 15, size_v = 15;
@@ -7,9 +8,10 @@ void DepthCostAware::calculateDepth(){
     const int size_t = input_img.rows/size_v;
 
     if (consistancyCost.empty())
-        consistancyCost = costAware_createCostVolume(size_u, size_v);
-    //if (focusCost.empty())
-        //focusCost = createFocusVolume(size_u, size_v, focus_threshold, 1);
+        calcConsistencyVolume();
+
+    if (focusCost.empty())
+        calcFocusVolume();
 
     cv::Mat cost_depth( size_t, size_s, CV_32FC1);
     for (int t=0; t < size_t; t++)
@@ -21,6 +23,7 @@ void DepthCostAware::calculateDepth(){
 
         float min_f = 9999, max_f = -9999;
         int min_d = size_d, max_d = 0;
+        int focus_d = 0;
         float avg_f = 0;
 
         for( int d=0; d < size_d; d++){
@@ -37,14 +40,26 @@ void DepthCostAware::calculateDepth(){
             // get minimum and maximum focusCost
             if (!focusCost.empty()){
                 float focus_cost = focusCost.at<float>(t,s,d);
+
+                if (focus_cost < focus_threshold)
+                    continue;
+
                 avg_f += focus_cost;
-                if (focus_cost < min_f){
+                /*if (focus_cost < min_f){
                     min_f = focus_cost;
                     min_d = d;
                 }
                 if (focus_cost > max_f){
                     max_f = focus_cost;
                     max_d = d;
+                }*/
+                if (focus_cost > 0){
+                    min_d = std::min(d, min_d);
+                    max_d = std::max(d, max_d);
+                    if (focus_cost > max_f){
+                        max_f = focus_cost;
+                        focus_d = d;
+                    }
                 }
             }
         }
@@ -53,7 +68,7 @@ void DepthCostAware::calculateDepth(){
         // calculate variance of consistency cost
         float mean = cons_depth_sum / size_d;
         float variance = 0;
-        int range = 2;
+        int range = variance_range;
         for( int d=0; d < size_d; d++){
             if (d > estimated_depth - range && d < estimated_depth + range)
             variance += std::pow(consistancyCost.at<float>(t, s, d) - mean,2);
@@ -70,13 +85,13 @@ void DepthCostAware::calculateDepth(){
         }
 
         if (use_consistency && use_focuscue && (
-        ((estimated_depth > min_d && estimated_depth < max_d) && use_filter_focus_bound))     // second case: estimated depth is not inside bounds
-        || (variance < max_variance/*/100.0f*/ && use_filter_cons_variance)){// || estimated_depth > max_d)){
+        ((estimated_depth < min_d || estimated_depth > max_d) && use_filter_focus_bound))     // second case: estimated depth is not inside bounds
+        || (variance < max_variance && use_filter_cons_variance)){// || estimated_depth > max_d)){
             cost_depth.at<float>(t, s) = 0;
             continue;
         }
         else if (use_focuscue && !use_consistency)
-            cost_depth.at<float>(t, s) = max_d;
+            cost_depth.at<float>(t, s) = focus_d;
         else if (!use_focuscue && use_consistency)
             cost_depth.at<float>(t, s) = estimated_depth;
         else
@@ -143,8 +158,8 @@ cv::Mat DepthCostAware::fillUpHoles(cv::Mat cost_depth){
                         continue;
                     int y = t+py;
                     int x = s+px;
-                    y = std::max(0, std::min(y, size_t));
-                    x = std::max(0, std::min(x, size_s));
+                    y = std::max(0, std::min(y, size_t-1));
+                    x = std::max(0, std::min(x, size_s-1));
                     float neighbour = cost_depth.at<float>(y, x);
 
                     // good value found -> search best value
@@ -169,20 +184,39 @@ cv::Mat DepthCostAware::fillUpHoles(cv::Mat cost_depth){
     return final_depth;
 }
 
-
 void DepthCostAware::calcFocusVolume(){
     const int size_u = 15, size_v = 15;
+
+    QMessageBox msgBox(view);
+    msgBox.setWindowTitle("Processing ....");
+    msgBox.setText("Calculating Focus Volume.\nThis could take a while! Just sit back ...");
+    msgBox.setStandardButtons(0);
+    msgBox.setWindowModality(Qt::NonModal);
+    msgBox.show();
+    QCoreApplication::processEvents();
+
     focusCost = createFocusVolume(size_u, size_v, focus_threshold, 1);
     updateLabel();
-}
 
+    msgBox.close();
+}
 
 void DepthCostAware::calcConsistencyVolume(){
     const int size_u = 15, size_v = 15;
+
+    QMessageBox msgBox(view);
+    msgBox.setWindowTitle("Processing ....");
+    msgBox.setText("Calculating Cost Volume.\nThis could take a while! Just sit back ...");
+    msgBox.setStandardButtons(0);
+    msgBox.setWindowModality(Qt::NonModal);
+    msgBox.show();
+    QCoreApplication::processEvents();
+
     consistancyCost = costAware_createCostVolume(size_u, size_v);
     updateLabel();
-}
 
+    msgBox.close();
+}
 
 void DepthCostAware::calcH(double pix_size, double lens_size, float N,
                               int c_pix, double c_Mx, double c_My,
@@ -276,23 +310,21 @@ cv::Mat DepthCostAware::costAware_createCostVolume(const int size_i, const int s
     int size_l = input_img.rows/size_j;
 
     cv::Mat img;
-    input_img.convertTo(img, CV_32FC3);
+    input_img.convertTo(img, CV_32FC3, 0.5/255.0);
     cv::cvtColor(img,img, cv::COLOR_BGR2RGB);
 
-    double pix_size = 1.3999999999999999e-6; // in m
-    double lens_size = 2.0000000000000002e-5; // in m
+    double pix_size = meta_info.mla_pixelPitch; //1.3999999999999999e-6; // in m
+    double lens_size = meta_info.mla_lensPitch; //2.0000000000000002e-5; // in m
     float N = 15.0f;//lens_size / pix_size; // 15 number of pixels per lenslet
-    int c_pix = 0; // translational pixel offset ?!
-    double c_Mx = -5.8005247410619631e-5;//  / pix_size;   // optical center offset in mm
-    double c_My = -1.1605224244704004e-5;//  / pix_size;    // optical center offset in mm
-    double c_mux = -7.3299932479858395e-6;// / pix_size;  // mla offset in mm
-    double c_muy = -5.5686492919921878e-6;//  / pix_size;   // mla offset in mm
-    double d_mu = 3.6999999999999998e-5;  // mla offset in mm
-    double f_M = 0.011542153404246169;    // focal length
+    int c_pix = 7; // translational pixel offset ?!
+    double c_Mx = meta_info.lens_centerOffset_x; //-5.8005247410619631e-5;  // optical center offset in mm
+    double c_My = -meta_info.lens_centerOffset_y;//-1.1605224244704004e-5;  // optical center offset in mm
+    double c_mux = meta_info.mla_centerOffset_x;  // mla offset in mm
+    double c_muy = -meta_info.mla_centerOffset_y;  // mla offset in mm
+    double d_mu = meta_info.mla_centerOffset_z;  // mla offset in mm
+    double f_M = meta_info.focallength;    // focal length
     //double f_M = 0.0037;    // focal length
-    double exitPupilOffset = 0.11559105682373047; // distance from the pupil to microlens plane
-    double min_d = 0;
-    double max_d = 1;
+    double exitPupilOffset = meta_info.exitPupilOffset; // distance from the pupil to microlens plane
     double H_data[25];
     DepthCostAware::calcH(pix_size, lens_size, N, c_pix, c_Mx, c_My,
                                       c_mux, c_muy, d_mu, f_M, exitPupilOffset, 1, H_data);
@@ -301,13 +333,34 @@ cv::Mat DepthCostAware::costAware_createCostVolume(const int size_i, const int s
 
     // a = [R, G, B, SxR, SxG, SxB, SyR, SyG, SyB]
     // Calculate image derivatives
-    cv::Mat dx;
-    cv::Mat dy;
+    cv::Mat dx, dy, lpl;
 
     //cv::img_gray;
     //cv::cvtColor(img,img_gray, cv::COLOR_BGR2GRAY);
-    cv::Sobel(img, dx, CV_32F, 1, 0, 7, 1, 0, cv::BORDER_DEFAULT);
-    cv::Sobel(img, dy, CV_32F, 0, 1, 7, 1, 0, cv::BORDER_DEFAULT);
+    cv::Sobel(img, dx, CV_32F, 1, 0, 7, 1, 0, cv::BORDER_REFLECT);
+    cv::Sobel(img, dy, CV_32F, 0, 1, 7, 1, 0, cv::BORDER_REFLECT);
+
+    double minVal, maxVal;
+    cv::minMaxLoc(dx, &minVal, &maxVal); //find minimum and maximum intensities
+    dx.convertTo(dx, CV_32F, 1.0/(maxVal - minVal));
+    dx = cv::abs(dx);
+    cv::minMaxLoc(dx, &minVal, &maxVal); //find minimum and maximum intensities
+    std::cout << "minVal : " << minVal << std::endl << "maxVal : " << maxVal << std::endl;
+
+
+    cv::minMaxLoc(dy, &minVal, &maxVal); //find minimum and maximum intensities
+    dy.convertTo(dy, CV_32F, 1.0/(maxVal - minVal));
+    dy = cv::abs(dy);
+    cv::minMaxLoc(dy, &minVal, &maxVal); //find minimum and maximum intensities
+    std::cout << "minVal : " << minVal << std::endl << "maxVal : " << maxVal << std::endl;
+
+    cv::minMaxLoc(img, &minVal, &maxVal); //find minimum and maximum intensities
+    std::cout << "minVal : " << minVal << std::endl << "maxVal : " << maxVal << std::endl;
+
+    //cv::Laplacian(img, lpl, CV_32F, 7);
+
+    //cv::convertScaleAbs( dx, dx );
+    //cv::convertScaleAbs( dy, dy );
 
     //C (t,s,d) = 1/n(S)* sum(|a(i_r,j_r,k,l) - a(i',j',k',l'|)
     // k', l' have to be calculated with H
@@ -316,20 +369,19 @@ cv::Mat DepthCostAware::costAware_createCostVolume(const int size_i, const int s
 
     cv::Mat a(1, 9, CV_32FC1);
     cv::Mat a_r(1, 9, CV_32FC1);
-    float* pa = a.ptr<float>(0);
-    float* pa_r = a_r.ptr<float>(0);
-    cv::Vec3f c_, cdx_, cdy_;
-    cv::Vec3f c_r, cdx_r, cdy_r;
+    cv::Vec3f c_, c_r;
+    cv::Vec3f cdx_, cdy_, cdx_r, cdy_r;
+    cv::Vec3f v_half(0.0f,0.0f,0.0f);
 
     int r = 7; // reference position 7,7
     double H_00 = H.at<double>(0,0);
     double H_02 = H.at<double>(0,2);
-    double H_04 = H.at<double>(0,4);
+    double H_04 = 0;//H.at<double>(0,4); // 0?
     double H_22 = H.at<double>(2,2);
     double H_24 = H.at<double>(2,4);
     double H_11 = H.at<double>(1,1);
     double H_13 = H.at<double>(1,3);
-    double H_14 = H.at<double>(1,4);
+    double H_14 = 0;//H.at<double>(1,4); // 0?
     double H_31 = H.at<double>(3,1);
     double H_33 = H.at<double>(3,3);
     double H_34 = H.at<double>(3,4);
@@ -339,51 +391,49 @@ cv::Mat DepthCostAware::costAware_createCostVolume(const int size_i, const int s
     for(int k=0; k<size_k; k++){
 
         c_r = img.at<cv::Vec3f>(l + r*size_l, k + r*size_k);
-        cdx_r = dx.at<cv::Vec3f>(l + r*size_l, k + r*size_k);
-        cdy_r = dy.at<cv::Vec3f>(l + r*size_l, k + r*size_k);
-        /*pa_r[0] = c_r[0];
-        pa_r[1] = c_r[1];
-        pa_r[2] = c_r[2];
-        pa_r[3] = cdx_r[0];
-        pa_r[4] = cdx_r[1];
-        pa_r[5] = cdx_r[2];
-        pa_r[6] = cdy_r[0];
-        pa_r[7] = cdy_r[1];
-        pa_r[8] = cdy_r[2];*/
+        cdx_r = dx.at<cv::Vec3f>(l + r*size_l, k + r*size_k) - v_half;
+        cdy_r = dy.at<cv::Vec3f>(l + r*size_l, k + r*size_k) - v_half;
         a_r.at<float>(0,0) = c_r[0];
         a_r.at<float>(0,1) = c_r[1];
         a_r.at<float>(0,2) = c_r[2];
-        a_r.at<float>(0,3) = cdx_r[0];
-        a_r.at<float>(0,4) = cdx_r[1];
-        a_r.at<float>(0,5) = cdx_r[2];
-        a_r.at<float>(0,6) = cdy_r[0];
-        a_r.at<float>(0,7) = cdy_r[1];
-        a_r.at<float>(0,8) = cdy_r[2];
+        a_r.at<float>(0,3) = std::abs(cdx_r[0]);
+        a_r.at<float>(0,4) = std::abs(cdx_r[1]);
+        a_r.at<float>(0,5) = std::abs(cdx_r[2]);
+        a_r.at<float>(0,6) = std::abs(cdy_r[0]);
+        a_r.at<float>(0,7) = std::abs(cdy_r[1]);
+        a_r.at<float>(0,8) = std::abs(cdy_r[2]);
 
-        //for(int d=0; d<size_d; d++){
         for(int d=0; d<size_d; d++){
+            float df = min_d + d*1.0f/size_d * (max_d - min_d);
 
             double sum = 0;
             int s_count = 0;
             for(int j=0; j<size_j; j++){
             for(int i=0; i<size_i; i++){
+                if (i + j <= 2 ||
+                    (size_i - i) + j <= 2 ||
+                    (size_i - i) + (size_j - j) <= 2 ||
+                    i + (size_j - j) <= 2)
+                    continue;
+
                 //a(u,v,t,s)
                 int i_f = i;
                 int j_f = j;
-                i_f -= size_i/2;
+                i_f -= size_i/2.0f;
                 //i_f /= size_i;
-                j_f -= size_j/2;
+                j_f -= size_j/2.0f;
                 //j_f /= size_j;
 
-                float df = min_d + d*1.0f/size_d * (max_d - min_d);
 
                 float zx = static_cast<float>(H_00*i_f + H_04 + df*H_02*i_f + df*H_24);
                 float nx = static_cast<float>(H_02 + df*H_22);
-                int k_ = k + (- zx) / nx + 0.5f;
+                float fk_ = k + (- zx) / nx;
+                int k_ = (fk_ > 0) ? static_cast<int>(fk_ + 0.5f) : static_cast<int>(fk_ - 0.5f); // round
 
                 float zy = static_cast<float>(H_11*j_f + H_14 + df*H_31*j_f + df*H_34);
                 float ny = static_cast<float>(H_13 + df*H_33);
-                int l_ = l + (- zy) / ny + 0.5f;
+                float fl_ = l + (- zy) / ny;
+                int l_ = (fl_ > 0) ? static_cast<int>(fl_ + 0.5f) : static_cast<int>(fl_ - 0.5f); // round
 
                 if (k_ < 0 || l_< 0 || k_ >= size_k || l_ >= size_l)
                     continue;
@@ -392,30 +442,22 @@ cv::Mat DepthCostAware::costAware_createCostVolume(const int size_i, const int s
                 int j_sl = j*size_l;
                 int i_sk = i*size_k;
                 c_ = img.at<cv::Vec3f>(l_ + j_sl, k_ + i_sk);
-                cdx_ = dx.at<cv::Vec3f>(l_ + j_sl, k_ + i_sk);
-                cdy_ = dy.at<cv::Vec3f>(l_ + j_sl, k_ + i_sk);
-                /*pa[0] = c_[0];
-                pa[1] = c_[1];
-                pa[2] = c_[2];
-                pa[3] = cdx_[0];
-                pa[4] = cdx_[1];
-                pa[5] = cdx_[2];
-                pa[6] = cdy_[0];
-                pa[7] = cdy_[1];
-                pa[8] = cdy_[2];*/
+                cdx_ = dx.at<cv::Vec3f>(l_ + j_sl, k_ + i_sk) - v_half;
+                cdy_ = dy.at<cv::Vec3f>(l_ + j_sl, k_ + i_sk) - v_half;
                 a.at<float>(0,0) = c_[0];
                 a.at<float>(0,1) = c_[1];
                 a.at<float>(0,2) = c_[2];
-                a.at<float>(0,3) = cdx_[0];
-                a.at<float>(0,4) = cdx_[1];
-                a.at<float>(0,5) = cdx_[2];
-                a.at<float>(0,6) = cdy_[0];
-                a.at<float>(0,7) = cdy_[1];
-                a.at<float>(0,8) = cdy_[2];
+                a.at<float>(0,3) = std::abs(cdx_[0]);
+                a.at<float>(0,4) = std::abs(cdx_[1]);
+                a.at<float>(0,5) = std::abs(cdx_[2]);
+                a.at<float>(0,6) = std::abs(cdy_[0]);
+                a.at<float>(0,7) = std::abs(cdy_[1]);
+                a.at<float>(0,8) = std::abs(cdy_[2]);
                 double value = cv::norm(a_r,a);
                 sum += value;
             }}
-            cost.at<float>(l, k, d) = static_cast<float>(sum) * 1.0f / s_count;
+            float val = static_cast<float>(sum) / s_count;
+            cost.at<float>(l, k, d) = val;
         }
     }
 

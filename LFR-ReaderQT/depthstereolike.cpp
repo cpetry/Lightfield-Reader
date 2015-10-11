@@ -100,13 +100,13 @@ void DepthStereoLike::stereoLikeTaxonomy(){
             for (int s=0; s < size_s; s++){
                 //variation_hori.at<cv::Vec3f>(t,s) = cost_vol_hori.at<cv::Vec3f>(t, s, d);
                 //variation_vert.at<cv::Vec3f>(t,s) = cost_vol_vert.at<cv::Vec3f>(t, s, d);
-                cv::Vec3f vert = cost_vol_vert.at<cv::Vec3f>(t, s, d);
-                cv::Vec3f hori = cost_vol_hori.at<cv::Vec3f>(t, s, d);
-                float vert_val = vert.val[0] + vert.val[1] + vert.val[2];
-                float hori_val = hori.val[0] + hori.val[1] + hori.val[2];
-                if (vert_val < hori_val)
-                    variation.at<cv::Vec3f>(t,s) = cost_vol_vert.at<cv::Vec3f>(t, s, d);
-                else
+                //cv::Vec3f vert = cost_vol_vert.at<cv::Vec3f>(t, s, d);
+                //cv::Vec3f hori = cost_vol_hori.at<cv::Vec3f>(t, s, d);
+                //float vert_val = vert.val[0] + vert.val[1] + vert.val[2];
+                //float hori_val = hori.val[0] + hori.val[1] + hori.val[2];
+                //if (vert_val < hori_val)
+                //    variation.at<cv::Vec3f>(t,s) = cost_vol_vert.at<cv::Vec3f>(t, s, d);
+                //else
                     variation.at<cv::Vec3f>(t,s) = cost_vol_hori.at<cv::Vec3f>(t, s, d);
             }
         }

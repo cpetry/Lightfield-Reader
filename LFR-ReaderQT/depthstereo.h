@@ -10,6 +10,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QObject>
+#include <QFileDialog>
 
 #include "myqgraphicsview.h"
 #include "imagedepth.h"
@@ -22,7 +23,9 @@ public:
     }
     ~DepthStereo(){}
 
-     void calculateDepth();
+public slots:
+
+    void calculateDepth();
 
 };
 

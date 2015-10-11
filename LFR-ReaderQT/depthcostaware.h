@@ -38,8 +38,10 @@ public slots:
     void setFilterConsVariance(bool v) { this->use_filter_cons_variance = v;  updateLabel();}
     void setShowCenterColorImage(bool v) { this->showCenterColorImage = v;  updateLabel();}
     void setFillUpHoles(bool v) { this->fill_up_holes = v;  updateLabel();}
-    void setFocusThreshold(double v) { this->focus_threshold = v; calcFocusVolume();}
-
+    void setFocusThreshold(double v) { this->focus_threshold = v; updateLabel();}
+    void setVarianceRange(int v) { this->variance_range = v; updateLabel();}
+    void setMinDistance(double v) { this->min_d = std::min(static_cast<float>(v), max_d); }
+    void setMaxDistance(double v) { this->max_d = std::max(min_d, static_cast<float>(v)); }
 
     bool getUseConsistency() {return this->use_consistency; }
     bool getUseFocusCue() {return this->use_focuscue; }
@@ -60,7 +62,8 @@ private:
     use_filter_focus_sml_0 = false, use_filter_focus_bound = false,
     use_filter_cons_variance = false, showCenterColorImage = false;
 
-
+    float min_d=0, max_d=1;
+    int variance_range = 2;
 };
 
 #endif // DEPTHCOSTAWARE_H

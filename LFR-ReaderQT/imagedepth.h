@@ -9,6 +9,8 @@
 #include <QLabel>
 #include <QObject>
 
+#include "lfp_reader.h"
+
 #include "myqgraphicsview.h"
 
 class ImageDepth : public QObject
@@ -77,7 +79,8 @@ public:
     }
 
 public slots:
-    void loadImage();
+    virtual void loadImage();
+    void saveImage();
     void updateLabel();
 
     void setViewMode(QString v){ this->view_mode = v.toStdString(); updateLabel();}
@@ -92,6 +95,7 @@ protected:
     MyGraphicsView* view;
     cv::Mat input_img, output_img;
     int size_d = 20;
+    LFP_Reader::lf_meta meta_info;
 
 private:
     virtual void calculateDepth() = 0;

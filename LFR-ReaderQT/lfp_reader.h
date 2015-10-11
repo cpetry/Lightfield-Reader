@@ -24,17 +24,22 @@ class LFP_Reader
 {
 
 public:
-    LFP_Reader(){};
+    LFP_Reader(){}
 
     struct lf_meta{
         lf_meta(){}
-        int bits;
-        int width;
-        int height;
+        int bits = 0;
+        int width = 0;
+        int height = 0;
         double modulationExposureBias;
         float cc[9];
         float r_bal;
         float b_bal;
+        float gamma;
+        double lens_centerOffset_x;
+        double lens_centerOffset_y;
+        double focallength;
+        double exitPupilOffset;
         double mla_rotation;
         double mla_scale_x;
         double mla_scale_y;
@@ -42,6 +47,7 @@ public:
         double mla_pixelPitch;
         double mla_centerOffset_x;
         double mla_centerOffset_y;
+        double mla_centerOffset_z;
     };
 
     lf_meta meta_infos;
@@ -49,6 +55,7 @@ public:
     bool read_lfp(MainWindow *main, std::string file, std::string raw_file_name = "");
     bool read_RAWFile(MainWindow* main, std::string file, std::string save_file_name = "");
     void parseLFMetaInfo(QString meta_info);
+    static QString createMetaInfoText(lf_meta meta_info);
     std::vector<char> readBytes(std::basic_ifstream<unsigned char> &input, int nmb_bytes = 0);
     std::string readText(std::basic_ifstream<unsigned char> &input, int nmb_bytes = 0);
 
@@ -114,9 +121,15 @@ private:
         else{
             str_size = int(std::min(heystack.find(",", pos), heystack.find("}", pos)) - pos);
         }
-        if(heystack.size() > pos+1 + str_size-1)
-            return trim(heystack.substr(pos+1, str_size-1));
-        else
+        if(heystack.size() > pos+1 + str_size-1){
+            std::string r_val = trim(heystack.substr(pos+1, str_size-1));
+            if (r_val.empty())
+                std::cout << "Empty meta info!\nSearched for " << searchstr << std::endl;
+            return r_val;
+        }
+        else{
+            //std::cout << "Error while parsing meta info!\nSearched for " << searchstr << std::endl;
             return "error";
+        }
     }
 };

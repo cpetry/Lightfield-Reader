@@ -346,55 +346,7 @@ void lfp_raw_view::saveRaw(){
 }
 
 void lfp_raw_view::saveMetaInfo(QString filename){
-
-    QString meta_string;
-    meta_string += "\"image\": { \n";
-        meta_string += "\t\"pixelPacking\": { \n";
-            meta_string += "\t\t\"bitsPerPixel\": " + QString::number(meta_infos.bits) + ",\n";
-            meta_string += "\t\t\"endianness\": \"little\"\n";
-        meta_string += "\t},\n";
-        meta_string += "\t\"width\": " + QString::number(meta_infos.width) + ",\n";
-        meta_string += "\t\"height\": " + QString::number(meta_infos.height) + ",\n";
-        meta_string += "\t\"modulationExposureBias\": " + QString::number(meta_infos.modulationExposureBias, 'g', 16) + ",\n";
-        meta_string += "\t\"color\": { \n";
-            meta_string += "\t\t\"whiteBalanceGain\": { \n";
-                meta_string += "\t\t\t\"gr\": " + QString::number(1.0) + ",\n";
-                meta_string += "\t\t\t\"r\": " + QString::number(meta_infos.r_bal, 'g', 16) + ",\n";
-                meta_string += "\t\t\t\"b\": " + QString::number(meta_infos.b_bal, 'g', 16) + ",\n";
-                meta_string += "\t\t\t\"gb\": " + QString::number(1.0) + "\n";
-            meta_string += "\t\t},\n";
-            meta_string += QString("\t\t\"ccm\": [\n")
-                    + "\t\t\t" + QString::number(meta_infos.cc[0], 'g', 16) + ",\n"
-                    + "\t\t\t" + QString::number(meta_infos.cc[1], 'g', 16) + ",\n"
-                    + "\t\t\t" + QString::number(meta_infos.cc[2], 'g', 16) + ",\n"
-                    + "\t\t\t" + QString::number(meta_infos.cc[3], 'g', 16) + ",\n"
-                    + "\t\t\t" + QString::number(meta_infos.cc[4], 'g', 16) + ",\n"
-                    + "\t\t\t" + QString::number(meta_infos.cc[5], 'g', 16) + ",\n"
-                    + "\t\t\t" + QString::number(meta_infos.cc[6], 'g', 16) + ",\n"
-                    + "\t\t\t" + QString::number(meta_infos.cc[7], 'g', 16) + ",\n"
-                    + "\t\t\t" + QString::number(meta_infos.cc[8], 'g', 16) + "\n"
-                    + "\t\t]\n";
-        meta_string += "\t}\n";
-    meta_string += "}\n";
-
-    meta_string += "\"devices\": { \n";
-        meta_string += "\t\"sensor\": { \n";
-            meta_string += "\t\t\"pixelPitch\": " + QString::number(meta_infos.mla_pixelPitch, 'g', 16) + "\n";
-        meta_string += "\t}\n";
-
-        meta_string += "\t\"mla\": { \n";
-            meta_string += "\t\t\"rotation\": " + QString::number(meta_infos.mla_rotation, 'g', 16) + ",\n";
-            meta_string += "\t\t\"scaleFactor\": { \n";
-                meta_string += "\t\t\t\"x\": " + QString::number(meta_infos.mla_scale_x, 'g', 16) + ",\n";
-                meta_string += "\t\t\t\"y\": " + QString::number(meta_infos.mla_scale_y, 'g', 16) + "\n";
-            meta_string += "\t\t},\n";
-            meta_string += "\t\t\"lensPitch\": " + QString::number(meta_infos.mla_lensPitch, 'g', 16) + "\n";
-            meta_string += "\t\t\"sensorOffset\": { \n";
-                meta_string += "\t\t\t\"x\": " + QString::number(meta_infos.mla_centerOffset_x, 'g', 16) + ",\n";
-                meta_string += "\t\t\t\"y\": " + QString::number(meta_infos.mla_centerOffset_y, 'g', 16) + "\n";
-            meta_string += "\t\t}\n";
-        meta_string += "\t}\n";
-    meta_string += "}";
+    QString meta_string = LFP_Reader::createMetaInfoText(this->meta_infos);
 
     filename = filename.split(".")[0] + ".txt";
     QFile file(filename);

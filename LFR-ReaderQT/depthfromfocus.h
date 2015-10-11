@@ -28,6 +28,7 @@ public:
 
 public slots:
     void setUseMaxFocus(bool b) { this->use_max_focus = b;  updateLabel();}
+    void setFocusAlgorithm(int i) { this->algorithm = i;  updateLabel();}
     void setUseMaxVariance(bool b) { this->use_max_variance = b;  updateLabel();}
     void setUseThreshold(bool b) { this->use_threshold = b;  updateLabel();}
     void setMaxVariance(double mv){ this->max_variance = mv; updateLabel();}
@@ -38,8 +39,9 @@ public slots:
 
 protected:
     float max_variance = 10.0f;
-    double focus_threshold = 16.0f;
+    double focus_threshold = 0.0f;
     double threshold = 16.0f;
+    int algorithm = 1;
     cv::Mat focusCost;
 
     bool use_max_focus = false, use_max_variance = false, use_threshold = false;
