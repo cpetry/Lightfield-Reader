@@ -55,8 +55,8 @@ void testPowerCrust(){
 
 void reconstruction3D::calculatePointCloud(std::vector<cv::Mat> depthmaps){
 
-    //calculateArtificialPointCloud(depthmaps);
-    calculateRealPointCloud(depthmaps);
+    calculateArtificialPointCloud(depthmaps);
+    //calculateRealPointCloud(depthmaps);
 }
 
 void reconstruction3D::calcPointCloudFromMultipleDepthMaps(){
@@ -109,7 +109,7 @@ void reconstruction3D::calculateArtificialPointCloud(std::vector<cv::Mat> depthm
     double min_mm = 265.0; // 100.0f;
     double max_mm = 420.0; // 300.0f;
     double total_depth_size = max_mm - min_mm; //mm - maximum - minimum
-    double fovy = 21.532 * M_PI / 180.0; // ;42.654
+    double fovy = 19.968 * M_PI / 180.0; // ;42.654
     double fovx = 28.452 * M_PI / 180.0; // 55.000
     double degree = 360.0 / 36.0;
     double width_mm = std::tan(fovx*0.5) * camera_distance * 2;
